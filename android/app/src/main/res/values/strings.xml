@@ -1,0 +1,7 @@
+<?xml version='1.0' encoding='utf-8'?>
+<resources>
+    <string name="app_name">Benjamin</string>
+    <string name="title_activity_main">Benjamin</string>
+    <string name="package_name">com.bybastos.benjamin</string>
+    <string name="custom_url_scheme">com.bybastos.benjamin</string>
+</resources>

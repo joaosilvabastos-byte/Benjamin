@@ -1,0 +1,9 @@
+{
+  "appId": "com.bybastos.benjamin",
+  "appName": "Benjamin",
+  "webDir": "www",
+  "server": {
+    "androidScheme": "https",
+    "cleartext": true
+  }
+}

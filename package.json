@@ -1,0 +1,9 @@
+{
+  "devDependencies": {
+    "@capacitor/android": "^8.6.0",
+    "@capacitor/cli": "^8.6.0"
+  },
+  "dependencies": {
+    "@capacitor-community/text-to-speech": "^8.0.2"
+  }
+}
