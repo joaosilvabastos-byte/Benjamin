@@ -529,7 +529,19 @@ public class BenjaminVoicePlugin extends Plugin {
         tts = (motor == null) ? new TextToSpeech(ctx, l) : new TextToSpeech(ctx, l, motor);
     }
 
-    /** falar({ texto, pitch?, rate?, voz? }) — resolve quando a frase TERMINA de ser dita. */
+    private final Runnable tarefaResetAFalar = new Runnable() {
+        @Override
+        public void run() {
+            if (aFalar) {
+                Log.w(TAG, "Watchdog: aFalar reset true -> false (tempo limite atingido)");
+                aFalar = false;
+                largarFoco();
+                main.post(tarefaAbrirSessao);
+            }
+        }
+    };
+
+    /** falar({ texto, pitch?, rate?, voz?, flush? }) — resolve quando a frase TERMINA de ser dita. */
     @PluginMethod
     public void falar(final PluginCall call) {
         final String texto = call.getString("texto", "");
@@ -556,8 +568,17 @@ public class BenjaminVoicePlugin extends Plugin {
         Float pitch = call.getFloat("pitch", 0.85f);
         Float rate = call.getFloat("rate", 0.85f);
         String voz = call.getString("voz", "");
+        boolean flush = call.getBoolean("flush", true);
+
+        if (flush && t != null) {
+            try { t.stop(); } catch (RuntimeException e) { /* ok */ }
+            for (PluginCall c : new ArrayList<>(falas.values())) c.resolve();
+            falas.clear();
+        }
 
         aFalar = true;
+        main.removeCallbacks(tarefaResetAFalar);
+        main.postDelayed(tarefaResetAFalar, 18000);
 
         // Antes de qualquer som: cancela o microfone e repõe o volume (espera pela thread main)
         final CountDownLatch pronto = new CountDownLatch(1);
@@ -598,10 +619,11 @@ public class BenjaminVoicePlugin extends Plugin {
             Log.w(TAG, "LoudnessEnhancer indisponivel", e);
             loudnessEnhancer = null;
         }
-        int r = t.speak(texto, TextToSpeech.QUEUE_ADD, params, id);
+        int r = t.speak(texto, TextToSpeech.QUEUE_FLUSH, params, id);
         if (r != TextToSpeech.SUCCESS) {
             falas.remove(id);
             if (falas.isEmpty()) {
+                main.removeCallbacks(tarefaResetAFalar);
                 aFalar = false;
                 largarFoco();
             }
@@ -613,11 +635,12 @@ public class BenjaminVoicePlugin extends Plugin {
         PluginCall c = falas.remove(id);
         if (c == null) return; // já resolvida por cortarFala()
         if (falas.isEmpty()) {
+            main.removeCallbacks(tarefaResetAFalar);
             aFalar = false;
             largarFoco();
             notifyListeners("ttsFim", new JSObject());
             // Rede de segurança: se o JS quer escuta e ninguém a reabriu, reabre 1 s depois (idempotente)
-            main.postDelayed(tarefaAbrirSessao, 1000);
+            main.postDelayed(tarefaAbrirSessao, 500);
         }
         if (erro == null) c.resolve();
         else c.reject(erro, "TTS_ERRO");

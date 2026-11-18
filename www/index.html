@@ -15,12 +15,13 @@
 
   <script>
 
-    // Paleta "Dark Cockpit Azul Profundo": cinzentos com tom azul-ardósia, destaques em ciano/azul elétrico.
-    // O vermelho (SOS, escuta ativa) mantém-se por segurança. Como é a paleta que muda, nenhum ID nem script é tocado.
-    const ARDOSIA = { 50:'#f8fafc',100:'#f1f5f9',200:'#e2e8f0',300:'#cbd5e1',400:'#94a3b8',500:'#64748b',600:'#475569',700:'#334155',800:'#1e293b',900:'#0f172a',950:'#0b132b' };
-    const CEU = { 50:'#f0f9ff',100:'#e0f2fe',200:'#bae6fd',300:'#7dd3fc',400:'#38bdf8',500:'#0ea5e9',600:'#0284c7',700:'#0369a1',800:'#075985',900:'#0c4a6e' };
-    const AZUL = { 50:'#eff6ff',100:'#dbeafe',200:'#bfdbfe',300:'#93c5fd',400:'#60a5fa',500:'#3b82f6',600:'#2563eb',700:'#1d4ed8',800:'#1e40af',900:'#1e3a8a' };
-    const TEAL = { 300:'#5eead4',400:'#2dd4bf',500:'#14b8a6',600:'#0d9488' };
+    // Paleta Roxa Original da Imagem de Referência:
+    // Fundo Principal & Barras: #130D1E / #181026
+    // Cartão / Painel Central: #221833
+    // Cartões Internos e Botões Secundários: #32234A com borda #4C386E
+    // Destaques / Título BENJAMIN / Botão Ativo FALAR / Separador Selecionado: Lilás #B794F4 / #C084FC / #E9D5FF
+    const ROXO_FUNDO = { 50:'#faf5ff',100:'#f3e8ff',200:'#e9d5ff',300:'#d8b4fe',400:'#c084fc',500:'#b794f4',600:'#a855f7',700:'#7e22ce',800:'#4c386e',900:'#32234a',950:'#221833' };
+    const LILAS_DESTAQUE = { 50:'#faf5ff',100:'#f3e8ff',200:'#e9d5ff',300:'#d8b4fe',400:'#c084fc',500:'#b794f4',600:'#a855f7',700:'#9333ea',800:'#7e22ce',900:'#6b21a8' };
     tailwind.config = {
       theme: {
         extend: {
@@ -28,10 +29,10 @@
             orbitron: ['Orbitron', 'sans-serif']
           },
           colors: {
-            sky: CEU, purple: AZUL, indigo: AZUL,
-            amber: CEU, orange: CEU, yellow: CEU,
-            emerald: TEAL, green: TEAL, teal: TEAL,
-            gray: ARDOSIA, slate: ARDOSIA, zinc: ARDOSIA
+            cyan: LILAS_DESTAQUE, sky: LILAS_DESTAQUE, purple: LILAS_DESTAQUE, indigo: LILAS_DESTAQUE,
+            amber: LILAS_DESTAQUE, orange: LILAS_DESTAQUE, yellow: LILAS_DESTAQUE,
+            emerald: LILAS_DESTAQUE, green: LILAS_DESTAQUE, teal: LILAS_DESTAQUE,
+            gray: ROXO_FUNDO, slate: ROXO_FUNDO, zinc: ROXO_FUNDO
           }
         }
       }
@@ -39,59 +40,79 @@
   </script>
 
   <style>
-    /* ===== Paleta azul profundo: fundo em degradê e bordas azuis translúcidas ===== */
-    html, body { background: #0F172A; }
-    body { background: linear-gradient(165deg, #0B132B 0%, #0F172A 100%) fixed; }
-    .border-gray-800, .border-gray-700, .border-gray-700\/40, .border-gray-700\/60 { border-color: rgba(59, 130, 246, .26); }
-    .bg-gray-800 { background-color: #1E293B; }
-    #driving-timer { text-shadow: 0 0 16px rgba(34, 211, 238, .55); }
-    input::placeholder { color: #64748b; }
+    /* ===== Paleta Roxa Original (Imagem de Referência) ===== */
+    html, body { background: #130D1E; color: #F3E8FF; }
+    body { background: linear-gradient(165deg, #130D1E 0%, #181026 100%) fixed; }
 
-    /* ===== Mapa limpo de rota (Leaflet) ===== */
-    #mapa-gps { background: #0B132B; border-radius: 16px; overflow: hidden; }
-    #mapa-gps .leaflet-control-attribution { background: rgba(0,0,0,.45); color: #7C8DA8; font-size: 8px; padding: 0 3px; }
-    #mapa-gps .leaflet-control-attribution a { color: #7C8DA8; }
-    .nav-veiculo { width: 22px; height: 22px; border-radius: 50%; background: rgba(56,189,248,.25); border: 2px solid #38bdf8; display: flex; align-items: center; justify-content: center; box-shadow: 0 0 10px rgba(56,189,248,.7); }
-    .nav-veiculo span { width: 8px; height: 8px; border-radius: 50%; background: #38bdf8; }
-    .nav-pino-destino, .nav-ponto { width: 30px; height: 30px; border-radius: 50%; background: #172554; border: 2px solid #38bdf8; display: flex; align-items: center; justify-content: center; font-size: 16px; line-height: 1; }
-    .nav-pino-destino { border-color: #22d3ee; }
+    /* Cabeçalho */
+    #topo-app { background: transparent; border-color: #32234A; }
+    #topo-app span.font-orbitron { color: #B794F4 !important; text-shadow: 0 0 12px rgba(183, 148, 244, 0.4); }
+
+    /* Bordas e Contentores */
+    .border-gray-800, .border-gray-700, .border-gray-700\/40, .border-gray-700\/60, .border-cyan-500\/40, .border-cyan-500\/60, .border-emerald-500\/30, .border-amber-500\/30, .border-slate-700 { border-color: #4C386E !important; }
+
+    /* Cartões Principais da App */
+    section, #sec-tacografo, .bg-\[\#172554\], .bg-\[\#0F172A\], .bg-\[\#1E293B\], .bg-\[\#070A0F\], .bg-\[\#0B132B\], .bg-\[\#030712\] { background-color: #221833 !important; }
+
+    /* Cartões Internos e Botões Secundários ("Normal", "Humor", "Quiz", "Sabia que...", "CALA-TE", "Próxima Pausa", "Descanso Diário") */
+    .bg-gray-800, .bg-\[\#1E293B\], .bg-\[\#1E293B\]\/40, .bg-slate-800 { background-color: #32234A !important; border-color: #4C386E !important; }
+
+    /* Botão / Elementos Ativos de Destaque ("João Bastos", "FALAR", etc) */
+    .bg-cyan-500, .bg-emerald-500 { background-color: #B794F4 !important; color: #130D1E !important; }
+    .bg-cyan-500\/20, .bg-emerald-500\/20, .bg-purple-500\/20, .bg-amber-500\/20, .bg-emerald-500\/10, .bg-amber-500\/10 { background-color: #32234A !important; border-color: #B794F4 !important; color: #E9D5FF !important; }
+
+    /* Timers e Texto do Tacógrafo */
+    #driving-timer, #driving-timer-mini, #driving-timer-overlay { color: #E9D5FF !important; text-shadow: 0 0 16px rgba(183, 148, 244, .6); }
+    #pause-timer { color: #D8B4FE !important; }
+    #rest-timer { color: #C084FC !important; }
+    input::placeholder { color: #A78BFA; }
+
+    /* Caixa de Onda de Voz no Separador Benjamin */
+    .bg-\[\#0B132B\] { background-color: #1A1226 !important; }
+    .bg-cyan-400 { background-color: #B794F4 !important; }
+    #ai-status-badge { background-color: #32234A !important; border-color: #4C386E !important; color: #C084FC !important; }
+
+    /* Mapa Leaflet */
+    #mapa-gps { background: #181026; border-radius: 16px; overflow: hidden; }
+    #mapa-gps .leaflet-control-attribution { background: rgba(0,0,0,.45); color: #D8B4FE; font-size: 8px; padding: 0 3px; }
+    #mapa-gps .leaflet-control-attribution a { color: #D8B4FE; }
+    .nav-veiculo { width: 26px; height: 26px; border-radius: 50%; background: rgba(183,148,244,.35); border: 2px solid #B794F4; display: flex; align-items: center; justify-content: center; box-shadow: 0 0 12px rgba(183,148,244,.8); transition: transform 0.3s ease; }
+    .nav-veiculo span { font-size: 13px; color: #B794F4; font-weight: 900; line-height: 1; }
+    .nav-pino-destino, .nav-ponto { width: 30px; height: 30px; border-radius: 50%; background: #32234A; border: 2px solid #B794F4; display: flex; align-items: center; justify-content: center; font-size: 16px; line-height: 1; }
+    .nav-pino-destino { border-color: #F59E0B; }
     #nav-pontos { display: none; flex-wrap: wrap; gap: 4px; justify-content: center; }
-    .nav-chip { font-size: 10px; font-weight: 700; padding: 4px 8px; border-radius: 999px; background: #172554; border: 1px solid #1E40AF; color: #bae6fd; max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-    .nav-chip-x { color: #94a3b8; border-color: #334155; }
-    .nav-bt { position: absolute; z-index: 1000; width: 34px; height: 34px; border-radius: 10px; background: rgba(15,23,42,.85); border: 1px solid #1E40AF; color: #e5e7eb; font-size: 16px; }
+    .nav-chip { font-size: 10px; font-weight: 700; padding: 4px 8px; border-radius: 999px; background: #32234A; border: 1px solid #4C386E; color: #F3E8FF; max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+    .nav-chip-x { color: #E9D5FF; border-color: #4C386E; }
+    .nav-bt { position: absolute; z-index: 1000; width: 34px; height: 34px; border-radius: 10px; background: rgba(50,35,74,.85); border: 1px solid #4C386E; color: #E5E7EB; font-size: 16px; }
 
-    /* ===== Modo "Dark Cockpit": só quando a vista GPS está ativa no separador Tacógrafo ===== */
+    /* Modo GPS Cockpit */
     .voltar-tempo { display: none; }
-    body.modo-gps { background: linear-gradient(165deg, #0A1124 0%, #070C1B 100%) fixed !important; }
+    body.modo-gps { background: linear-gradient(165deg, #130D1E 0%, #181026 100%) fixed !important; }
     body.modo-gps #app-container { background: transparent !important; }
-    /* cabeçalho em cinzento muito escuro, sem cores vivas nem brilhos */
-    body.modo-gps #topo-app { background: #0B132B !important; border-color: #16233F !important; }
-    body.modo-gps #topo-app img { filter: grayscale(1) brightness(.45); box-shadow: none !important; border-color: #2B3F66 !important; }
-    body.modo-gps #topo-app span { color: #6B7C99 !important; text-shadow: none !important; }
-    body.modo-gps #topo-app button { background: #111C36 !important; border-color: #26385C !important; color: #7C8DA8 !important; box-shadow: none !important; }
-    /* esconde o que não é navegação */
+    body.modo-gps #topo-app { background: #181026 !important; border-color: #32234A !important; }
+    body.modo-gps #topo-app span { color: #B794F4 !important; text-shadow: none !important; }
+    body.modo-gps #topo-app button { background: #32234A !important; border-color: #4C386E !important; color: #E9D5FF !important; box-shadow: none !important; }
     body.modo-gps #barra-condutores,
     body.modo-gps #linha-estado,
     body.modo-gps #caixas-tempo,
     body.modo-gps #botoes-cabine,
     body.modo-gps #rodape-nav { display: none !important; }
-    /* painel de navegação em destaque, fundo escuro limpo */
     body.modo-gps #tab-tacografo { overflow: hidden; }
-    body.modo-gps #sec-tacografo { background: #080F22 !important; border-color: #0B132B !important; box-shadow: none !important; padding: 6px !important; justify-content: center; }
+    body.modo-gps #sec-tacografo { background: #221833 !important; border-color: #32234A !important; box-shadow: none !important; padding: 6px !important; justify-content: center; }
     body.modo-gps #blocoBenjaminAtivo { flex: 1 1 auto; margin: 0 !important; padding: 0 !important; max-width: none !important; }
-    body.modo-gps #vw-cluster-nav { height: 100%; max-width: none !important; border-color: #1E3A8A !important; box-shadow: none !important; background: #080F22 !important; padding: 8px !important; gap: 6px; }
-    /* morada de destino: até 2 linhas (o condutor precisa de a ler inteira) */
+    body.modo-gps #vw-cluster-nav { height: 100%; max-width: none !important; border-color: #4C386E !important; box-shadow: none !important; background: #221833 !important; padding: 8px !important; gap: 6px; }
     #tbt-target-address { white-space: normal !important; overflow: hidden; text-overflow: ellipsis; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; line-height: 1.25; font-size: 12px; }
-    /* mapa escuro (só nos mosaicos; a rota e os marcadores mantêm as cores) */
-    /* Mapa escuro só com filtro CSS sobre os mosaicos OSM: terreno azul-noite; contornos de ruas e edifícios claros (≈10:1), nomes ilegíveis de propósito */
-    #mapa-gps.estilo-osm .leaflet-tile-pane { filter: invert(1) grayscale(1) brightness(2.4) contrast(1.15) sepia(1) hue-rotate(180deg) saturate(2.5); }
+    #mapa-gps.estilo-osm .leaflet-tile-pane { filter: invert(1) grayscale(1) brightness(2.4) contrast(1.15) sepia(1) hue-rotate(240deg) saturate(2.5); }
     body.modo-gps #tbt-distance { font-size: 1.9rem; line-height: 1; }
-    body.modo-gps #nav-voz-btn { background: #0B132B !important; border-color: #26385C !important; color: #7C8DA8 !important; }
-    body.modo-gps #nav-voz-btn.ligada { color: #bae6fd !important; border-color: #1E3A8A !important; }
-    /* único controlo em baixo: botão cinzento mate para voltar ao Tempo / Tacógrafo */
+    body.modo-gps #nav-voz-btn { background: #32234A !important; border-color: #4C386E !important; color: #D8B4FE !important; }
+    body.modo-gps #nav-voz-btn.ligada { color: #F3E8FF !important; border-color: #B794F4 !important; }
     body.modo-gps .voltar-tempo { display: block; width: 100%; padding: 12px 0; margin-top: 6px; border-radius: 14px;
-      background: #111C36; border: 1px solid #1B2A48; color: #7C8DA8; font-weight: 700; font-size: 11px; letter-spacing: .08em; text-transform: uppercase; }
-    body.modo-gps .voltar-tempo:active { background: #16233F; }
+      background: #32234A; border: 1px solid #4C386E; color: #D8B4FE; font-weight: 700; font-size: 11px; letter-spacing: .08em; text-transform: uppercase; }
+    body.modo-gps .voltar-tempo:active { background: #4C386E; }
+
+    /* Footer Navigation / Separador Selecionado */
+    footer#rodape-nav, footer { background-color: #181026 !important; border-color: #32234A !important; }
+    footer button.bg-cyan-500\/20, footer button.border-cyan-500\/40 { background-color: #32234A !important; border-color: #4C386E !important; color: #B794F4 !important; }
   </style>
 </head>
 <body class="text-gray-100 font-sans select-none antialiased overflow-hidden">

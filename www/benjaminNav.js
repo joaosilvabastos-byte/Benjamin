@@ -747,10 +747,10 @@ export class Navegacao {
 
   _centrar() {
     if (!this._mapa || !this.pos) return;
-    this._mapa.setView([this.pos.lat, this.pos.lon], Math.max(this._mapa.getZoom(), 13), { animate: false });
+    this._mapa.setView([this.pos.lat, this.pos.lon], 17.0, { animate: false });
   }
   /** Botão 📍 */
-  centrarNaPosicao() { this._seguir = true; clearTimeout(this._timerSeguir); if (this._mapa && this.pos) this._mapa.setView([this.pos.lat, this.pos.lon], 14); }
+  centrarNaPosicao() { this._seguir = true; clearTimeout(this._timerSeguir); if (this._mapa && this.pos) this._mapa.setView([this.pos.lat, this.pos.lon], 17.0); }
   /** Botão 🗺️ */
   verRotaToda() {
     if (!this._mapa) return;
@@ -784,13 +784,16 @@ export class Navegacao {
     const L = this._L;
     this._camadaRota.clearLayers();
     this._mDestino = null;
-    this._halo = L.polyline(this.rota.pts, { color: '#0c1f4a', weight: 9, opacity: 0.9, lineCap: 'round', lineJoin: 'round' }).addTo(this._camadaRota);
-    this._linha = L.polyline(this.rota.pts, { color: '#38bdf8', weight: 5, opacity: 1, lineCap: 'round', lineJoin: 'round' }).addTo(this._camadaRota);
+    this._halo = L.polyline(this.rota.pts, { color: '#1d152b', weight: 18, opacity: 0.9, lineCap: 'round', lineJoin: 'round' }).addTo(this._camadaRota);
+    this._linha = L.polyline(this.rota.pts, { color: '#a855f7', weight: 10, opacity: 1, lineCap: 'round', lineJoin: 'round' }).addTo(this._camadaRota);
     this._marcarDestino();
-    if (ajustar) {                                                       // 1.ª vista: a rota inteira; passados 6 s passa a seguir o veículo
-      this.verRotaToda();
-      clearTimeout(this._timerSeguir);
-      this._timerSeguir = setTimeout(() => { this._seguir = true; this._centrar(); }, 6000);
+    if (ajustar) {
+      if (this.pos) {
+        this._seguir = true;
+        this._centrar();
+      } else {
+        this.verRotaToda();
+      }
     }
   }
 
@@ -798,19 +801,30 @@ export class Navegacao {
     if (!this._mapa || !this.pos) return;
     const L = this._L;
     const ll = [this.pos.lat, this.pos.lon];
+    const head = (typeof this.pos.heading === 'number' && !isNaN(this.pos.heading)) ? this.pos.heading : 0;
     if (!this._mVeiculo) {
+      const htmlVeiculo = `<div class="nav-veiculo" style="transform: rotate(${head}deg);"><span style="display:block;">▲</span></div>`;
       this._mVeiculo = L.marker(ll, {
-        icon: L.divIcon({ className: '', html: '<div class="nav-veiculo"><span></span></div>', iconSize: [22, 22], iconAnchor: [11, 11] }),
+        icon: L.divIcon({ className: '', html: htmlVeiculo, iconSize: [26, 26], iconAnchor: [13, 13] }),
         interactive: false, keyboard: false, zIndexOffset: 1000,
       }).addTo(this._mapa);
-    } else this._mVeiculo.setLatLng(ll);
+    } else {
+      this._mVeiculo.setLatLng(ll);
+      const elV = this._mVeiculo.getElement();
+      if (elV) {
+        const inner = elV.querySelector('.nav-veiculo');
+        if (inner) inner.style.transform = `rotate(${head}deg)`;
+      }
+    }
     if (snap && this._linha && Date.now() - (this._ultimoTraco || 0) > 3000) {     // só desenha o que falta
       this._ultimoTraco = Date.now();
       const resto = [ll, ...this.rota.pts.slice(snap.i + 1)];
       this._linha.setLatLngs(resto);
       this._halo.setLatLngs(resto);
     }
-    if (this._seguir) this._centrar();
+    if (this._seguir) {
+      this._mapa.panTo(ll, { animate: true, duration: 0.5 });
+    }
   }
 
   _mostrarPontos(itens, tipo) {
