@@ -902,13 +902,39 @@ export const Benjamin = {
     return p.length ? p.join(' e ') : 'menos de um minuto';
   },
 
-  async _fetchJSON(url, opcoes, ms) {
+  async _fetchJSON(url, opcoes = {}, ms = 5000, tentativa = 1) {
+    const timeoutMs = tentativa === 2 ? 6000 : ms;
     const ctrl = new AbortController();
-    const timer = setTimeout(() => ctrl.abort(), ms);
+    const timer = setTimeout(() => ctrl.abort(), timeoutMs);
     try {
-      const r = await fetch(url, { ...opcoes, signal: ctrl.signal });
-      if (!r.ok) throw new Error('HTTP ' + r.status);
+      const opts = {
+        cache: 'no-store',
+        ...opcoes,
+        signal: ctrl.signal,
+        headers: {
+          'Content-Type': 'application/json',
+          ...(opcoes.headers || {}),
+        },
+      };
+      const r = await fetch(url, opts);
+      if (!r.ok) {
+        console.warn(`Benjamin: HTTP aviso ${r.status} (${r.statusText}) na tentativa ${tentativa} de 2 para ${url}`);
+        const err = new Error(`HTTP ${r.status} ${r.statusText}`);
+        err.status = r.status;
+        throw err;
+      }
       return await r.json();
+    } catch (err) {
+      const statusInfo = err && err.status ? ` (HTTP ${err.status})` : '';
+      console.warn(`Benjamin: Falha na chamada a ${url} (tentativa ${tentativa} de 2)${statusInfo}:`, err && err.message);
+
+      if (tentativa < 2) {
+        console.warn(`Benjamin: A aguardar 300 ms para a tentativa 2 de 2 (timeout 6s)...`);
+        await new Promise((resolve) => setTimeout(resolve, 300));
+        return await this._fetchJSON(url, opcoes, 6000, 2);
+      }
+      console.error(`Benjamin: Todas as 2 tentativas de _fetchJSON falharam para ${url}:`, err);
+      throw err;
     } finally {
       clearTimeout(timer);
     }
@@ -965,7 +991,7 @@ export const Benjamin = {
   },
 
   _pedido(tipo, tema) {
-    const antigos = this._hist(tipo).slice(-10).map((h) => '"' + h.slice(0, 70) + '"').join('; ');
+    const antigos = this._hist(tipo).slice(-1).map((h) => String(h || '').replace(/["'\\\r\n]+/g, ' ').trim().slice(0, 40)).filter(Boolean).join('; ');
     const regra = antigos
       ? ` REGRA ABSOLUTA: não repitas nem reciclas nenhum destes conteúdos já ditos ao condutor (muda de assunto e de estrutura): ${antigos}.`
       : '';
@@ -984,7 +1010,7 @@ export const Benjamin = {
   async _novoConteudo(tipo) {
     let tema = this._escolherTema(tipo);
     for (let tentativa = 0; tentativa < 2; tentativa++) {
-      const bruto = await this.perguntarAoGemini(this._pedido(tipo, tema), { semOffline: true, ms: 15000 });
+      const bruto = await this.perguntarAoGemini(this._pedido(tipo, tema), { semOffline: true, ms: 5000 });
       if (!bruto) return null;
       let texto = bruto.trim();
       let letra = null;
@@ -1387,16 +1413,27 @@ export const Benjamin = {
   },
 
   /** semOffline: devolve null (em vez de uma frase de "perdi o sinal") quando o Worker falha. */
-  async perguntarAoGemini(textoUsuario, { semOffline = false, ms = 12000 } = {}) {
+  async perguntarAoGemini(textoUsuario, { semOffline = false, ms = 5000 } = {}) {
+    console.time('worker');
     try {
+      const promptLimpo = String(textoUsuario || '').trim();
+      const payload = { textoUsuario: promptLimpo, prompt: promptLimpo, mensagem: promptLimpo, text: promptLimpo };
       const data = await this._fetchJSON(URL_WORKER, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ textoUsuario }),
+        body: JSON.stringify(payload),
       }, ms);
-      if (!data.erro && data.resposta) return String(data.resposta).replace(/[*_#`]/g, '');
+      if (data && !data.erro) {
+        const resp = data.resposta || data.response || data.text || data.result || data.message;
+        if (resp) return String(resp).replace(/[*_#`]/g, '').trim();
+      }
+      if (data && data.erro) {
+        console.error('Benjamin: Cloudflare Worker devolveu campo de erro:', data.erro);
+      }
     } catch (e) {
-      console.warn('Benjamin: Worker indisponível:', e.message);
+      console.error('Benjamin: Worker indisponível (falha de rede ou timeout):', e && e.name, e && e.message, e);
+    } finally {
+      console.timeEnd('worker');
     }
     if (semOffline) return null;
     return this._variar('offline', [
