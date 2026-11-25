@@ -893,7 +893,7 @@ export class BenjaminEngine {
     this.renderizar();
 
     const B = this.benjamin;
-    B.falar('Diz a morada.');
+    B.falar('Diz a morada, mas confirma se ficou correta. Senão, corrige manualmente.');
     B.capturarProximaFrase((texto) => {
       const alvo = this._ditadoId;
       this._ditadoId = null;

@@ -21,7 +21,7 @@ const R = 6371000;
 const rad = (d) => (d * Math.PI) / 180;
 // Mosaicos: OpenStreetMap (gratuito, sem chave nem plano). O aspeto escuro vem de um filtro CSS (ver index.html, .estilo-osm).
 const URL_TILES = 'https://tile.openstreetmap.org/{z}/{x}/{y}.png';
-const OVERPASS = ['https://overpass-api.de/api/interpreter', 'https://overpass.kumi.systems/api/interpreter'];
+const OVERPASS = ['https://overpass-api.de/api/interpreter', 'https://overpass.kumi.systems/api/interpreter', 'https://overpass.private.coffee/api/interpreter'];
 
 // =========================================================================================
 // 1) GEOMETRIA
@@ -135,7 +135,10 @@ export function destinoFalado(morada) {
   return partes.slice(0, 3).join(', ') || 'o destino';
 }
 
-export const LEGENDA_MAPA = 'Mapa: só o melhor percurso · pergunta-me pelo trânsito ou pelo combustível';
+export const LEGENDA_MAPA = 'O mapa apenas indica o melhor percurso · Se precisares, pergunta-me pelo trânsito ou pelo combustível';
+
+/** Seta do veículo (estilo TomTom): azul com contorno branco e sombra escura, nítida sobre a rota e o mapa. */
+const SETA_SVG = '<svg width="36" height="36" viewBox="0 0 36 36" style="display:block;overflow:visible"><path d="M18 2 L31 32 L18 25 L5 32 Z" fill="#1D5BFF" stroke="#FFFFFF" stroke-width="3" stroke-linejoin="round"/><path d="M18 2 L31 32 L18 25 L5 32 Z" fill="none" stroke="#0B1B4D" stroke-width="1" stroke-linejoin="round" opacity=".6"/></svg>';
 
 /** Aviso inicial da rota: completo na 1.ª vez do turno, curto nas seguintes. */
 export function fraseAviso(morada, completo) {
@@ -187,10 +190,14 @@ export const TIPOS_PONTO = {
 export function construirConsultaOverpass(tipo, pos, linha, raio) {
   const t = TIPOS_PONTO[tipo];
   if (!t) throw new Error('tipo desconhecido: ' + tipo);
-  const f = (area) => t.filtros.map((x) => `node${x}${area};way${x}${area};`).join('');
+  const f = (area) => t.filtros.map((x) => `nwr${x}${area};`).join('');      // nó, via ou relação numa só cláusula
   let corpo = f(`(around:${raio},${pos[0].toFixed(5)},${pos[1].toFixed(5)})`);
-  if (linha && linha.length >= 2) corpo += f(`(around:1500,${linha.map((p) => p[0].toFixed(4) + ',' + p[1].toFixed(4)).join(',')})`);
-  return `[out:json][timeout:20];(${corpo});out center 80;`;
+  if (linha && linha.length >= 2) {
+    const passo = Math.max(1, Math.ceil(linha.length / 12));                // consulta leve: no máximo ~12 pontos da rota
+    const pts = linha.filter((_, i) => i % passo === 0);
+    corpo += f(`(around:1500,${pts.map((p) => p[0].toFixed(4) + ',' + p[1].toFixed(4)).join(',')})`);
+  }
+  return `[out:json][timeout:10];(${corpo});out center 40;`;
 }
 
 /** Resposta do Overpass → itens ordenados por distância a `pos`. */
@@ -410,7 +417,9 @@ export class Navegacao {
 
   _aoPosicao(p) {
     const c = p.coords;
-    this.pos = { lat: c.latitude, lon: c.longitude, prec: c.accuracy || 0, vel: c.speed };
+    this.pos = { lat: c.latitude, lon: c.longitude, prec: c.accuracy || 0, vel: c.speed, heading: c.heading };
+    this._posEm = Date.now();
+    if (window.BenjaminSeguranca) window.BenjaminSeguranca.posicao(this.pos);   // velocidade/posição para o ROTT e o SOS nativos
     if (this.estado === 'gps-negado') this.estado = this.destino ? 'localizar' : 'sem-guia';
     if (this.destino && this.destino.coord && !this.rota && (this.estado === 'gps' || this.estado === 'localizar')) {
       this._calcular(this._tok);
@@ -454,7 +463,7 @@ export class Navegacao {
       }
     }
     if (tok !== this._tok) return;
-    if (!d.coord) { this._falhar(tok, 'Não encontrei esta morada no mapa. Edita a morada (rua e localidade).', false); return; }
+    if (!d.coord) { this._falhar(tok, 'Não encontrei esta morada no mapa. Volta às opções e edita o endereço (rua e localidade).', false); return; }
     this._marcarDestino();
     if (!this.pos) { this.estado = 'gps'; this._desenhar(); return; }
     this._calcular(tok);
@@ -530,6 +539,7 @@ export class Navegacao {
     const snap = snapRota(r, pos, this._idxSeg);
     this._idxSeg = snap.i;
     const limite = Math.max(60, (this.pos.prec || 0) * 1.5);
+    this._noCaminho = snap.d <= limite;
     if (snap.d > limite) {
       this._fora++;
       if (this._fora >= 3 && Date.now() - this._ultimoCalculo > 15000) {
@@ -558,9 +568,7 @@ export class Navegacao {
     this._ultimoAviso = agora;
     this._anunciouRota = true;
     this._pendenteAviso = false;
-    const completo = !avisoCompletoDado;
-    avisoCompletoDado = true;
-    this._falar(fraseAviso(this.destino.morada, completo), true);
+    // (aviso falado "Rota traçada para..." removido: o Benjamin só fala da viagem quando o condutor carrega em Iniciar)
   }
 
   _lerVoz() { try { return localStorage.getItem(KEY_VOZ) === '1'; } catch (e) { return false; } }
@@ -644,41 +652,78 @@ export class Navegacao {
   async procurarPontos(tipo) {
     const t = TIPOS_PONTO[tipo];
     if (!t) return 'Não percebi o que queres procurar.';
+    if (!this.pos || Date.now() - (this._posEm || 0) > 180000) await this._posicaoAgora();   // sem posição recente: pede uma leitura única
     if (!this.pos) return 'Ainda não tenho o sinal de GPS. Assim que o tiver, procuro.';
     const pos = [this.pos.lat, this.pos.lon];
     const linha = this.rota && this.p ? amostrarAdiante(this.rota, this.rota.total - this.p.restM) : null;
     let itens = [];
     let falhouRede = false;
-    for (const raio of [6000, 15000]) {
+    const t0 = Date.now();
+    for (const raio of [8000, 25000]) {                                 // 2.ª volta só se a 1.ª trouxer pouco e ainda houver tempo
       try { itens = await this._overpass(tipo, pos, linha, raio); falhouRede = false; } catch (e) { falhouRede = true; console.warn('Benjamin NAV: Overpass falhou:', e && e.message); break; }
-      if (itens.length >= 3) break;
+      if (itens.length >= 2 || Date.now() - t0 > 9000) break;
     }
-    if (falhouRede) {                                                    // reserva: pesquisa do Nominatim em volta
-      try { itens = await this._nominatimPontos(tipo, pos); falhouRede = false; } catch (e) { console.warn('Benjamin NAV: Nominatim falhou:', e && e.message); }
+    if (falhouRede || !itens.length) {                                   // reserva: pesquisa do Nominatim em volta
+      try { itens = await this._nominatimPontos(tipo, pos, Math.max(4000, 14000 - (Date.now() - t0))); falhouRede = false; } catch (e) { console.warn('Benjamin NAV: Nominatim falhou:', e && e.message); }
     }
+    console.log(`Benjamin NAV: pontos '${tipo}' em ${pos[0].toFixed(4)},${pos[1].toFixed(4)}: ${itens.length} resultados, falhouRede=${falhouRede}`);
     if (falhouRede) return 'Não consegui consultar a rede agora, mas o mapa continua a funcionar. Tenta daqui a pouco.';
     this._mostrarPontos(itens, tipo);
     return fraseResultado(itens, tipo);
   }
 
-  async _overpass(tipo, pos, linha, raio) {
-    const q = construirConsultaOverpass(tipo, pos, linha, raio);
-    let ultimo;
-    for (const url of OVERPASS) {
+  /** Leitura única do GPS (até 8 s) para quando a posição contínua ainda não chegou ou está velha. */
+  _posicaoAgora() {
+    return new Promise((resolve) => {
+      if (!navigator.geolocation) { resolve(); return; }
+      let feito = false;
+      const fim = () => { if (!feito) { feito = true; resolve(); } };
+      setTimeout(fim, 8500);
       try {
-        const j = await this._json(url, { method: 'POST', headers: { 'Content-Type': 'application/x-www-form-urlencoded' }, body: 'data=' + encodeURIComponent(q) }, 22000);
-        return lerOverpass(j, pos, tipo);
-      } catch (e) { ultimo = e; }
-    }
-    throw ultimo || new Error('Overpass indisponível');
+        navigator.geolocation.getCurrentPosition((p) => { if (!feito) this._aoPosicao(p); fim(); }, fim, { enableHighAccuracy: true, maximumAge: 30000, timeout: 8000 });
+      } catch (e) { fim(); }
+    });
   }
 
-  async _nominatimPontos(tipo, pos) {
-    const d = 0.12;
-    const vb = `${pos[1] - d},${pos[0] + d},${pos[1] + d},${pos[0] - d}`;
-    const j = await this._json(`https://nominatim.openstreetmap.org/search?format=jsonv2&limit=12&bounded=1&accept-language=pt&viewbox=${vb}&q=${encodeURIComponent(TIPOS_PONTO[tipo].nominatim)}`, {}, 10000);
-    const elementos = (j || []).map((x) => ({ lat: parseFloat(x.lat), lon: parseFloat(x.lon), tags: { name: x.name || (x.display_name || '').split(',')[0] } }));
-    return lerOverpass({ elements: elementos }, pos, tipo);
+  async _overpass(tipo, pos, linha, raio) {
+    const q = construirConsultaOverpass(tipo, pos, linha, raio);
+    // Os servidores são consultados EM PARALELO: ganha o primeiro que responder (máx. 9 s), em vez de esperar um a um
+    // Um servidor sobrecarregado responde RÁPIDO com HTTP 200 e "elements" vazio + "remark" (erro/timeout): isso NÃO é "zero postos".
+    // Só conta como resposta válida a que traz resultados; respostas vazias/erro deixam ganhar os outros servidores.
+    const pedir = (url) => this._json(url, { method: 'POST', headers: { 'Content-Type': 'application/x-www-form-urlencoded' }, body: 'data=' + encodeURIComponent(q) }, 12000)
+      .then((j) => {
+        const n = j && Array.isArray(j.elements) ? j.elements.length : -1;
+        const host = url.split('/')[2];
+        if (n < 0) { console.log(`Benjamin NAV: Overpass ${host}: resposta sem "elements"`, j && j.remark); throw new Error(`${host}: resposta inválida`); }
+        if (n === 0) { console.log(`Benjamin NAV: Overpass ${host}: 0 elementos`, (j && j.remark) || ''); const e = new Error(`${host}: vazio ${(j && j.remark) || ''}`); e.vazio = !(j && j.remark); throw e; }
+        console.log(`Benjamin NAV: Overpass ${host}: ${n} elementos`);
+        return lerOverpass(j, pos, tipo);
+      });
+    try {
+      return await Promise.any(OVERPASS.map(pedir));
+    } catch (e) {
+      const erros = (e && e.errors) || [e];
+      erros.forEach((x) => console.log('Benjamin NAV: Overpass falhou:', x && x.message));
+      if (erros.every((x) => x && x.vazio)) return [];          // todos disseram, sem erro, que não há nada: zero real
+      throw erros.find((x) => x && !x.vazio) || new Error('Overpass indisponível');
+    }
+  }
+
+  async _nominatimPontos(tipo, pos, ms = 8000) {
+    const d = 0.2;                                                         // ~22 km de cada lado
+    const vb = `${pos[1] - d},${pos[0] + d},${pos[1] + d},${pos[0] - d}`;  // Nominatim: esquerda,topo,direita,fundo = lon,lat,lon,lat
+    const termos = tipo === 'combustivel' ? [TIPOS_PONTO[tipo].nominatim, 'gas station', 'fuel'] : [TIPOS_PONTO[tipo].nominatim];
+    let ultimoErro = null;
+    for (const termo of termos) {
+      try {
+        const j = await this._json(`https://nominatim.openstreetmap.org/search?format=jsonv2&limit=15&bounded=1&accept-language=pt&viewbox=${vb}&q=${encodeURIComponent(termo)}`, {}, ms);
+        const elementos = (Array.isArray(j) ? j : []).map((x) => ({ lat: parseFloat(x.lat), lon: parseFloat(x.lon), tags: { name: x.name || (x.display_name || '').split(',')[0] } })).filter((x) => !isNaN(x.lat) && !isNaN(x.lon));
+        console.log(`Benjamin NAV: Nominatim "${termo}": ${elementos.length} resultados`);
+        if (elementos.length) return lerOverpass({ elements: elementos }, pos, tipo);
+      } catch (e) { ultimoErro = e; console.log(`Benjamin NAV: Nominatim "${termo}" falhou:`, e && e.message); }
+    }
+    if (ultimoErro) throw ultimoErro;
+    return [];
   }
 
   limparPontos() {
@@ -725,11 +770,8 @@ export class Navegacao {
     m.setView(centro, this.pos ? 14 : 7);
     this._camadaRota = L.layerGroup().addTo(m);
     this._camadaPontos = L.layerGroup().addTo(m);
-    m.on('dragstart', () => {                                          // o condutor mexeu no mapa: deixa de seguir durante 25 s
-      this._seguir = false;
-      clearTimeout(this._timerSeguir);
-      this._timerSeguir = setTimeout(() => { this._seguir = true; this._centrar(); }, 25000);
-    });
+    m.on('dragstart', () => this._pausarSeguir());                     // o condutor mexeu no mapa: deixa de seguir durante 25 s
+    m.on('popupopen', () => this._pausarSeguir());                     // com um balão aberto o mapa volta a Norte (texto legível)
     this._mapa = m;
     this._L = L;
     this._aplicarTrafego();
@@ -742,21 +784,204 @@ export class Navegacao {
 
   _mapaRedimensionar() {
     if (!this._mapa) { this._garantirMapa(); return; }
-    try { this._mapa.invalidateSize(); if (this._seguir) this._centrar(); } catch (e) { /* ok */ }
+    try { if (this._rotOn) this._dimsRotacao(true); this._mapa.invalidateSize(); if (this._seguir) this._centrar(); } catch (e) { /* ok */ }
+  }
+
+  // ---------- mapa com a frente para cima (heading-up) ----------
+  /** Rumo suavizado: só muda com o veículo em andamento (>= ~7 km/h); parado, mantém o último (sem rotações bruscas). */
+  _rumoSuave() {
+    const p = this.pos;
+    if (p) {
+      let h = null;
+      const andar = typeof p.vel === 'number' && !isNaN(p.vel) ? p.vel >= 2 : null;      // null = o GPS não dá velocidade
+      // O rumo do GPS só vale com velocidade conhecida >= 2 m/s (parado, muitos telemóveis dão 0 ou lixo). Sem velocidade usa-se o deslocamento.
+      if ((andar === true || (typeof p.vel === 'number' && p.vel >= 1)) && typeof p.heading === 'number' && !isNaN(p.heading)) h = p.heading;
+      // Sem rumo do GPS: calcula-o pelo deslocamento real (>= 15 m). Parado ou com ruído de GPS (< 15 m) não roda.
+      const r = this._refRumo;
+      if (!r) this._refRumo = { lat: p.lat, lon: p.lon };
+      else {
+        const rad = Math.PI / 180, dy = (p.lat - r.lat) * 111320, dx = (p.lon - r.lon) * 111320 * Math.cos(p.lat * rad);
+        if (Math.hypot(dx, dy) >= 15) {
+          if (h === null) h = (Math.atan2(dx, dy) / rad + 360) % 360;      // >= 15 m deslocados é movimento real, mesmo a pé ou devagar
+          this._refRumo = { lat: p.lat, lon: p.lon };
+        }
+      }
+      // Em cima da rota, o mapa acompanha o sentido da ESTRADA (como o TomTom): estável, sem tremer, e roda mesmo a andar devagar.
+      if (this._noCaminho && this.rota) { const br = this._rumoRota(); if (br !== null) h = br; }
+      if (h !== null) {
+        if (this._hdgS == null) this._hdgS = h;
+        else { const d = ((h - this._hdgS + 540) % 360) - 180; this._hdgS = (this._hdgS + d * 0.3 + 360) % 360; }
+      }
+    }
+    if (this._simul !== null && this._simul !== undefined) { this._hdgS = this._simul; return this._hdgS; }   // teste manual (simularRumo)
+    // Orientação inicial: ainda sem rumo do GPS, usa o sentido da própria rota (assim o percurso aponta para cima desde o início)
+    if (this._hdgS == null) { const br = this._rumoRota(); if (br !== null) this._hdgS = br; }
+    return this._hdgS == null ? null : this._hdgS;
+  }
+
+  /** Sentido da rota à frente (~60 m) a partir do segmento atual, em graus (0 = Norte). null sem rota. */
+  _rumoRota() {
+    const r = this.rota;
+    if (!r || !r.pts || r.pts.length < 2) return null;
+    const i = Math.max(0, Math.min(this._idxSeg || 0, r.pts.length - 2));
+    let j = i + 1;
+    while (j < r.pts.length - 1 && r.cum[j] - r.cum[i] < 60) j++;
+    const a = r.pts[i], b = r.pts[j];
+    const dy = (b[0] - a[0]) * 111320, dx = (b[1] - a[1]) * 111320 * Math.cos(rad(a[0]));
+    if (Math.hypot(dx, dy) < 5) return null;
+    return (Math.atan2(dx, dy) / rad(1) + 360) % 360;
+  }
+
+  /**
+   * Centro do mapa que põe o veículo em ~80% da altura visível (muita estrada à frente, para cima).
+   * O contentor do mapa está rodado (-ângulo), por isso "para cima no ecrã" = vetor (sin a, -cos a) nas coordenadas do mapa.
+   * Calcula-se por project/unproject (um único setView/panTo), em vez de setView + panBy.
+   */
+  _centroComOffset(ll, zoom) {
+    try {
+      const m = this._mapa, L = this._L;
+      const P = m.getContainer().parentElement;
+      const H = P ? P.clientHeight : 0;
+      if (!H || H < 100) return ll;
+      const D = Math.min(H * 0.30, Math.max(0, H / 2 - 48));              // 0,30 da altura (=> 80%), sem encostar à borda de baixo
+      const a = (((this._rotOn ? this._rotAcum : 0) || 0) * Math.PI) / 180;
+      const z = zoom === undefined ? m.getZoom() : zoom;
+      const pt = m.project(ll, z);
+      return m.unproject(L.point(pt.x + D * Math.sin(a), pt.y - D * Math.cos(a)), z);
+    } catch (e) { return ll; }
+  }
+
+  /** Escreve estilos com !important no contentor: nenhum CSS (index.html, Leaflet, WebView) pode anular a rotação. */
+  _estilo(el, props) {
+    for (const k of Object.keys(props)) el.style.setProperty(k, props[k], 'important');
+  }
+
+  /** O contentor do mapa passa a ser um quadrado maior (a diagonal) para não aparecerem cantos vazios ao rodar. */
+  _dimsRotacao(ligar) {
+    const el = this._mapa.getContainer();
+    const P = el.parentElement;
+    if (!P) return;
+    P.style.overflow = 'hidden';
+    if (ligar) {
+      const w = P.clientWidth, h = P.clientHeight, d = Math.ceil(Math.hypot(w, h)) + 8;
+      this._estilo(el, { right: 'auto', bottom: 'auto', width: d + 'px', height: d + 'px', left: ((w - d) / 2) + 'px', top: ((h - d) / 2) + 'px', 'transform-origin': '50% 50%' });
+    } else {
+      for (const k of ['width', 'height', 'transform', '-webkit-transform', 'transition']) el.style.removeProperty(k);
+      this._estilo(el, { right: '0', bottom: '0', left: '0', top: '0' });
+    }
+  }
+
+  /** graus = rumo (frente para cima) ou null (Norte para cima, como antes). */
+  _aplicarRotacao(graus) {
+    if (!this._mapa) { this._rotMotivo = 'sem mapa'; return; }
+    const el = this._mapa.getContainer();
+    const pai = el && el.parentElement;
+    if (pai && (pai.clientWidth < 50 || pai.clientHeight < 50)) { this._rotMotivo = `pai pequeno ${pai.clientWidth}x${pai.clientHeight}`; return; }   // vista GPS escondida
+    this._rotMotivo = '';
+    if (pai) {
+      pai.style.overflow = 'hidden';
+      if (!pai.style.backgroundColor) pai.style.backgroundColor = '#160f24';
+    }
+
+    const quer = graus !== null && graus !== undefined && !Number.isNaN(Number(graus));
+    const anguloAlvo = quer ? ((Number(graus) % 360) + 360) % 360 : null;
+    const rodar = (deg, trans) => {
+      this._estilo(el, { transition: trans, transform: `rotate(${deg}deg)`, '-webkit-transform': `rotate(${deg}deg)` });
+    };
+
+    if (quer !== !!this._rotOn) {
+      this._rotOn = quer;
+      this._dimsRotacao(quer);
+      try { this._mapa.invalidateSize({ animate: false }); } catch (e) { /* ok */ }
+      if (quer) {
+        this._rotAcum = anguloAlvo;
+        rodar(-this._rotAcum, 'none');
+        void el.offsetWidth;
+        this._estilo(el, { transition: 'transform .6s ease-out' });
+      } else {
+        this._rotAcum = 0;
+        rodar(0, 'none');
+      }
+      return;
+    }
+
+    if (!quer) return;
+    const d = ((anguloAlvo - this._rotAcum + 540) % 360) - 180;
+    if (Math.abs(d) < 2) return; // ignora oscilações pequenas
+    this._rotAcum += d; // ângulo acumulado: nunca dá a volta ao contrário
+    rodar(-this._rotAcum, 'transform .6s ease-out');
+  }
+
+  /** Para de seguir (e de rodar o mapa) durante 25 s: arrastar o mapa ou abrir um balão tem de ser com o Norte para cima. */
+  _pausarSeguir() {
+    this._seguir = false;
+    clearTimeout(this._timerSeguir);
+    this._timerSeguir = setTimeout(() => { this._seguir = true; this._centrar(); }, 25000);
+    this._aplicarRotacao(null);
+    this._orientarSeta(null);
+  }
+
+  /** Mapa a rodar: a seta contra-roda o mesmo ângulo do mapa e fica SEMPRE para cima. Norte para cima: aponta ao rumo. */
+  _orientarSeta(head) {
+    if (!this._mVeiculo) return;
+    const elV = this._mVeiculo.getElement();
+    const inner = elV && elV.querySelector('.nav-veiculo');
+    if (!inner) return;
+    const ang = this._rotOn ? this._rotAcum : (head !== null && head !== undefined ? head : (this._hdgS || 0));
+    inner.style.transform = `rotate(${ang}deg)`;
   }
 
   _centrar() {
     if (!this._mapa || !this.pos) return;
-    this._mapa.setView([this.pos.lat, this.pos.lon], 17.0, { animate: false });
+    try {
+      this._aplicarRotacao(this._seguir ? this._rumoSuave() : null);
+      const ll = [this.pos.lat, this.pos.lon];
+      this._mapa.setView(this._seguir ? this._centroComOffset(ll, 17.0) : ll, 17.0, { animate: false });
+      this._orientarSeta(null);
+    } catch (e) { this._erroRot = String((e && e.message) || e); console.warn('Benjamin NAV: centrar', e && e.message); }       // nunca pode travar o resto (rota, painel, GPS)
   }
+  /** Estado da rotação, para ver na consola: benjaminNav.diagnosticoRotacao() */
+  diagnosticoRotacao() {
+    const m = this._mapa;
+    const el = m && m.getContainer();
+    const pai = el && el.parentElement;
+    const cs = el && getComputedStyle(el);
+    return {
+      mapaExiste: !!m, vista: typeof vistaAtual !== 'undefined' ? vistaAtual : '(n/d)',
+      seguir: this._seguir, rotOn: !!this._rotOn, rotAcum: this._rotAcum, hdgS: this._hdgS, simul: this._simul,
+      motivoSemRotar: this._rotMotivo || '', erro: this._erroRot || '',
+      inlineTransform: el ? el.style.transform : null, computedTransform: cs ? cs.transform : null,
+      contentor: el ? `${el.clientWidth}x${el.clientHeight}` : null, pai: pai ? `${pai.clientWidth}x${pai.clientHeight}` : null,
+      posicao: !!this.pos, rota: !!this.rota, estado: this.estado,
+    };
+  }
+
+  /** Teste sem andar: benjaminNav.simularRumo(90) roda o mapa para esse rumo (0-359) durante ~15 s. simularRumo(null) cancela. */
+  async simularRumo(graus) {
+    clearTimeout(this._timerSimul);
+    if (graus === null || graus === undefined) { this._simul = null; return; }
+    this._simul = ((Number(graus) % 360) + 360) % 360;
+    this._hdgS = this._simul;
+    this._timerSimul = setTimeout(() => { this._simul = null; }, 15000);
+    this._seguir = true;
+    this._erroRot = '';
+    try {
+      if (!this._mapa) await this._garantirMapa();
+      if (!this.pos) { this._erroRot = 'sem posição GPS (this.pos vazio)'; }
+      else this._centrar();
+    } catch (e) { this._erroRot = String((e && e.message) || e); }
+    await dormir(800);
+    const d = this.diagnosticoRotacao();
+    console.log('Benjamin NAV: simularRumo', JSON.stringify(d));
+    return d;
+  }
+
   /** Botão 📍 */
-  centrarNaPosicao() { this._seguir = true; clearTimeout(this._timerSeguir); if (this._mapa && this.pos) this._mapa.setView([this.pos.lat, this.pos.lon], 17.0); }
+  centrarNaPosicao() { this._seguir = true; clearTimeout(this._timerSeguir); this._centrar(); }
   /** Botão 🗺️ */
   verRotaToda() {
     if (!this._mapa) return;
-    this._seguir = false;
-    clearTimeout(this._timerSeguir);
-    this._timerSeguir = setTimeout(() => { this._seguir = true; this._centrar(); }, 25000);
+    this._pausarSeguir();
     const pts = [];
     if (this.pos) pts.push([this.pos.lat, this.pos.lon]);
     if (this.destino && this.destino.coord) pts.push(this.destino.coord);
@@ -784,8 +1009,8 @@ export class Navegacao {
     const L = this._L;
     this._camadaRota.clearLayers();
     this._mDestino = null;
-    this._halo = L.polyline(this.rota.pts, { color: '#1d152b', weight: 18, opacity: 0.9, lineCap: 'round', lineJoin: 'round' }).addTo(this._camadaRota);
-    this._linha = L.polyline(this.rota.pts, { color: '#a855f7', weight: 10, opacity: 1, lineCap: 'round', lineJoin: 'round' }).addTo(this._camadaRota);
+    this._halo = L.polyline(this.rota.pts, { color: '#04210f', weight: 27, opacity: 0.9, lineCap: 'round', lineJoin: 'round' }).addTo(this._camadaRota);
+    this._linha = L.polyline(this.rota.pts, { color: '#39FF14', weight: 15, opacity: 1, lineCap: 'round', lineJoin: 'round' }).addTo(this._camadaRota);
     this._marcarDestino();
     if (ajustar) {
       if (this.pos) {
@@ -801,20 +1026,16 @@ export class Navegacao {
     if (!this._mapa || !this.pos) return;
     const L = this._L;
     const ll = [this.pos.lat, this.pos.lon];
-    const head = (typeof this.pos.heading === 'number' && !isNaN(this.pos.heading)) ? this.pos.heading : 0;
+    const rumo = this._rumoSuave();
+    const head = rumo !== null ? rumo : ((typeof this.pos.heading === 'number' && !isNaN(this.pos.heading)) ? this.pos.heading : 0);
     if (!this._mVeiculo) {
-      const htmlVeiculo = `<div class="nav-veiculo" style="transform: rotate(${head}deg);"><span style="display:block;">▲</span></div>`;
+      const htmlVeiculo = `<div class="nav-veiculo" style="transform: rotate(${head}deg);">${SETA_SVG}</div>`;
       this._mVeiculo = L.marker(ll, {
-        icon: L.divIcon({ className: '', html: htmlVeiculo, iconSize: [26, 26], iconAnchor: [13, 13] }),
+        icon: L.divIcon({ className: '', html: htmlVeiculo, iconSize: [36, 36], iconAnchor: [18, 18] }),
         interactive: false, keyboard: false, zIndexOffset: 1000,
       }).addTo(this._mapa);
     } else {
       this._mVeiculo.setLatLng(ll);
-      const elV = this._mVeiculo.getElement();
-      if (elV) {
-        const inner = elV.querySelector('.nav-veiculo');
-        if (inner) inner.style.transform = `rotate(${head}deg)`;
-      }
     }
     if (snap && this._linha && Date.now() - (this._ultimoTraco || 0) > 3000) {     // só desenha o que falta
       this._ultimoTraco = Date.now();
@@ -822,8 +1043,10 @@ export class Navegacao {
       this._linha.setLatLngs(resto);
       this._halo.setLatLngs(resto);
     }
+    this._aplicarRotacao(this._seguir ? rumo : null);
+    this._orientarSeta(head);
     if (this._seguir) {
-      this._mapa.panTo(ll, { animate: true, duration: 0.5 });
+      this._mapa.panTo(this._centroComOffset(ll), { animate: true, duration: 0.5 });
     }
   }
 
@@ -837,9 +1060,7 @@ export class Navegacao {
       icon: L.divIcon({ className: '', html: `<div class="nav-ponto">${icone}</div>`, iconSize: [30, 30], iconAnchor: [15, 15] }),
     }).bindPopup(`<b>${p.nome.replace(/[<>&]/g, '')}</b><br>${fmtDist(p.dist)}`).addTo(this._camadaPontos));
     if (itens.length && this.pos) {
-      this._seguir = false;
-      clearTimeout(this._timerSeguir);
-      this._timerSeguir = setTimeout(() => { this._seguir = true; this._centrar(); }, 25000);
+      this._pausarSeguir();
       this._mapa.fitBounds([[this.pos.lat, this.pos.lon], ...itens.map((p) => [p.lat, p.lon])], { padding: [30, 30], maxZoom: 15, animate: false });
     }
     this._renderPontos(itens, tipo);
@@ -857,7 +1078,7 @@ export class Navegacao {
       b.type = 'button';
       b.className = 'nav-chip';
       b.textContent = `${icone} ${p.nome} · ${fmtDist(p.dist)}`;
-      b.onclick = () => { if (this._mapa) { this._seguir = false; this._mapa.setView([p.lat, p.lon], 16); if (this._marcadores && this._marcadores[i]) this._marcadores[i].openPopup(); } };
+      b.onclick = () => { if (this._mapa) { this._pausarSeguir(); this._mapa.setView([p.lat, p.lon], 16); if (this._marcadores && this._marcadores[i]) this._marcadores[i].openPopup(); } };
       el.appendChild(b);
     });
     const x = document.createElement('button');

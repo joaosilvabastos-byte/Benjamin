@@ -57,10 +57,9 @@
     /* Cartões Internos e Botões Secundários ("Normal", "Humor", "Quiz", "Sabia que...", "CALA-TE", "Próxima Pausa", "Descanso Diário") */
     .bg-gray-800, .bg-\[\#1E293B\], .bg-\[\#1E293B\]\/40, .bg-slate-800 { background-color: #32234A !important; border-color: #4C386E !important; }
 
-    /* Botão / Elementos Ativos de Destaque ("João Bastos", "FALAR", etc) */
-    .bg-cyan-500, .bg-emerald-500 { background-color: #B794F4 !important; color: #130D1E !important; }
-    .bg-cyan-500\/20, .bg-emerald-500\/20, .bg-purple-500\/20, .bg-amber-500\/20, .bg-emerald-500\/10, .bg-amber-500\/10 { background-color: #32234A !important; border-color: #B794F4 !important; color: #E9D5FF !important; }
-
+    /* Botão / Elementos Ativos de Destaque ("Condutor 1", "FALAR", etc.) */
+.bg-cyan-500, .bg-emerald-500 { background-color: #B794F4 !important; color: #130D1E !important; }
+.bg-cyan-500\/20, .bg-emerald-500\/20, .bg-purple-500\/20, .bg-amber-500\/20, .bg-emerald-500\/10, .bg-amber-500\/10 { background-color: #32234A !important; border-color: #B794F4 !important; color: #E9D5FF !important; }
     /* Timers e Texto do Tacógrafo */
     #driving-timer, #driving-timer-mini, #driving-timer-overlay { color: #E9D5FF !important; text-shadow: 0 0 16px rgba(183, 148, 244, .6); }
     #pause-timer { color: #D8B4FE !important; }
@@ -76,13 +75,18 @@
     #mapa-gps { background: #181026; border-radius: 16px; overflow: hidden; }
     #mapa-gps .leaflet-control-attribution { background: rgba(0,0,0,.45); color: #D8B4FE; font-size: 8px; padding: 0 3px; }
     #mapa-gps .leaflet-control-attribution a { color: #D8B4FE; }
-    .nav-veiculo { width: 26px; height: 26px; border-radius: 50%; background: rgba(183,148,244,.35); border: 2px solid #B794F4; display: flex; align-items: center; justify-content: center; box-shadow: 0 0 12px rgba(183,148,244,.8); transition: transform 0.3s ease; }
+    .nav-veiculo { width: 36px; height: 36px; display: flex; align-items: center; justify-content: center; filter: drop-shadow(0 0 3px rgba(0,0,0,.9)); transition: transform .6s ease-out; }
+    .pasta > summary { list-style: none; }
+    .pasta > summary::-webkit-details-marker { display: none; }
+    .pasta .seta { display: inline-block; transition: transform .2s ease; }
+    .pasta[open] > summary .seta { transform: rotate(90deg); }
     .nav-veiculo span { font-size: 13px; color: #B794F4; font-weight: 900; line-height: 1; }
     .nav-pino-destino, .nav-ponto { width: 30px; height: 30px; border-radius: 50%; background: #32234A; border: 2px solid #B794F4; display: flex; align-items: center; justify-content: center; font-size: 16px; line-height: 1; }
     .nav-pino-destino { border-color: #F59E0B; }
     #nav-pontos { display: none; flex-wrap: wrap; gap: 4px; justify-content: center; }
     .nav-chip { font-size: 10px; font-weight: 700; padding: 4px 8px; border-radius: 999px; background: #32234A; border: 1px solid #4C386E; color: #F3E8FF; max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
     .nav-chip-x { color: #E9D5FF; border-color: #4C386E; }
+    body.ecra-off #mapa-gps, body.ecra-off .nav-bt { visibility: hidden !important; }
     .nav-bt { position: absolute; z-index: 1000; width: 34px; height: 34px; border-radius: 10px; background: rgba(50,35,74,.85); border: 1px solid #4C386E; color: #E5E7EB; font-size: 16px; }
 
     /* Modo GPS Cockpit */
@@ -146,7 +150,7 @@
         <div id="barra-condutores" class="grid grid-cols-2 gap-2 mb-2 shrink-0">
           <button id="btn-condutor-1" onclick="selecionarCondutorAtivo(1)"
                   class="py-2 rounded-xl font-bold text-xs transition bg-cyan-500 text-black shadow-[0_0_10px_rgba(34,211,238,0.4)] truncate px-1">
-            <span id="label-condutor-1">João Bastos</span>
+            <span id="label-condutor-1">Condutor 1</span>
           </button>
 
           <button id="btn-condutor-2" onclick="selecionarCondutorAtivo(2)"
@@ -157,16 +161,15 @@
 
         <section id="sec-tacografo" class="bg-[#172554] border border-gray-800 rounded-2xl p-3 flex flex-col items-center justify-between flex-1 shadow-xl">
           <div id="linha-estado" class="w-full flex justify-between items-center">
-            <span id="trip-status-label" class="text-[10px] text-gray-400 font-bold uppercase tracking-wider">Estado: Parado / Pátio</span>
+            <span id="trip-status-label" class="text-[10px] text-gray-400 font-bold uppercase tracking-wider">Estado: Parado</span>
             <button onclick="toggleDrivingLimit()" id="limit-btn" class="text-[10px] bg-gray-800 border border-gray-700 text-cyan-300 font-bold px-2.5 py-0.5 rounded-full">
               Limite: 9h
             </button>
           </div>
 
-          <div id="blocoCronometro">
-            <div class="w-36 h-36 my-2 rounded-full border-4 border-cyan-500/40 bg-[#0B132B] flex flex-col items-center justify-center shadow-[0_0_20px_rgba(34,211,238,0.2)] shrink-0">
-              <span id="driving-timer" class="text-2xl font-black text-cyan-300 font-mono tracking-wider">09:00:00</span>
-              <span id="amplitude-text" class="text-[9px] text-emerald-400 font-bold mt-0.5">Amplitude: 24 Horas</span>
+         <div id="blocoCronometro">
+            <div class="w-48 h-48 my-2 rounded-full border-4 border-cyan-500/40 bg-[#0B132B] flex flex-col items-center justify-center shadow-[0_0_20px_rgba(34,211,238,0.2)] shrink-0">
+              <span id="driving-timer" class="text-3xl font-black text-cyan-300 font-mono tracking-wider">09:00:00</span>
             </div>
           </div>
 
@@ -241,38 +244,31 @@
       </div>
 
       <!-- 2. SEPARADOR BENJAMIN -->
-      <div id="tab-benjamin" class="hidden flex-1 flex flex-col justify-between">
-        <section class="bg-[#172554] border border-gray-800 rounded-2xl p-4 flex-1 flex flex-col justify-between">
+      <div id="tab-benjamin" class="hidden flex-1 min-h-0 flex flex-col justify-between">
+        <section class="bg-[#172554] border border-gray-800 rounded-2xl p-3 flex-1 min-h-0 flex flex-col justify-between">
           <div>
-            <div class="flex items-center justify-between border-b border-gray-800 pb-3 mb-3">
-              <span class="font-extrabold text-cyan-400 text-sm">🤖 Benjamin <span class="text-[10px] text-gray-500 font-normal ml-2">(Copiloto IA)</span></span>
-              <span id="ai-status-badge" class="text-[10px] bg-emerald-500/10 text-emerald-400 border border-emerald-500/30 px-2 py-0.5 rounded-full font-bold">Em espera</span>
-            </div>
 
-            <p class="text-[10px] text-gray-400 font-bold uppercase tracking-wider mb-2">Estilo de Conversa</p>
-            <div class="grid grid-cols-2 gap-x-2 gap-y-3 mb-5">
-              <div>
-                <button onclick="setAiMode('normal')" id="mode-normal" class="w-full py-2.5 rounded-xl text-xs font-bold bg-cyan-500/20 text-cyan-300 border border-cyan-500">💬 Normal</button>
-                <p class="text-[9px] text-gray-500 text-center mt-1 leading-tight">Pergunta-me o que quiseres</p>
+            <p class="text-[17px] text-gray-100 font-extrabold leading-tight mb-1">Que posso perguntar ao Benjamin?</p>
+            <p class="text-[11px] text-gray-400 leading-snug mb-2">Podes perguntar qualquer coisa — ou usar estes atalhos:</p>
+            <div class="flex flex-col gap-1.5 mb-2">
+              <div class="flex items-center gap-3 rounded-xl border border-amber-500/40 bg-[#1E293B] px-3 py-1.5 select-none pointer-events-none">
+                <span class="text-[13px] font-bold text-gray-200 shrink-0 w-[6.5rem]">😄 Humor</span>
+                <span class="text-[13px] text-gray-400 leading-tight">“Benjamin, conta uma piada”</span>
               </div>
-              <div>
-                <button onclick="setAiMode('humor')" id="mode-humor" class="w-full py-2.5 rounded-xl text-xs font-bold bg-[#1E293B] text-gray-400 border border-gray-700">😄 Humor</button>
-                <p class="text-[9px] text-gray-500 text-center mt-1 leading-tight">“Benjamin, conta uma piada”</p>
+              <div class="flex items-center gap-3 rounded-xl border border-purple-500/40 bg-[#1E293B] px-3 py-1.5 select-none pointer-events-none">
+                <span class="text-[13px] font-bold text-gray-200 shrink-0 w-[6.5rem]">🧠 Quiz</span>
+                <span class="text-[13px] text-gray-400 leading-tight">“Benjamin, faz um quiz”</span>
               </div>
-              <div>
-                <button onclick="setAiMode('quiz')" id="mode-quiz" class="w-full py-2.5 rounded-xl text-xs font-bold bg-[#1E293B] text-gray-400 border border-gray-700">🧠 Quiz</button>
-                <p class="text-[9px] text-gray-500 text-center mt-1 leading-tight">“Benjamin, faz um quiz”<br>Responde: “A”, “B” ou “C”</p>
-              </div>
-              <div>
-                <button onclick="setAiMode('sabia')" id="mode-sabia" class="w-full py-2.5 rounded-xl text-xs font-bold bg-[#1E293B] text-gray-400 border border-gray-700">💡 Sabia que...</button>
-                <p class="text-[9px] text-gray-500 text-center mt-1 leading-tight">“Benjamin, diz uma curiosidade”</p>
+              <div class="flex items-center gap-3 rounded-xl border border-emerald-500/40 bg-[#1E293B] px-3 py-1.5 select-none pointer-events-none">
+                <span class="text-[13px] font-bold text-gray-200 shrink-0 w-[6.5rem]">💡 Sabia que...</span>
+                <span class="text-[13px] text-gray-400 leading-tight">“Benjamin, diz uma curiosidade”</span>
               </div>
             </div>
 
-            <p id="status" class="text-xs text-center text-gray-300 my-2 min-h-[20px]">Benjamin pronto.</p>
+            <p id="status" class="text-lg text-center text-gray-300 mt-2 mb-1 min-h-[24px]">Benjamin pronto.</p>
             <p id="transcricao" class="text-xs text-center text-emerald-400 italic my-1 min-h-[20px]"></p>
 
-            <div class="flex items-center justify-center space-x-2 h-14 my-4 bg-[#0B132B] rounded-2xl border border-gray-800">
+            <div class="flex items-center justify-center space-x-2 h-10 my-2 overflow-hidden bg-[#0B132B] rounded-2xl border border-gray-800">
               <div class="w-2 h-8 bg-cyan-400 rounded-full animate-pulse"></div>
               <div class="w-2 h-12 bg-cyan-400 rounded-full animate-pulse"></div>
               <div class="w-2 h-6 bg-cyan-400 rounded-full animate-pulse"></div>
@@ -282,10 +278,10 @@
           </div>
 
           <div class="grid grid-cols-2 gap-2 mt-2">
-            <button onclick="toggleSilentMode()" id="silent-btn" class="py-4 rounded-xl font-black text-xs border bg-gray-800 border-gray-700 text-gray-300 transition">
+            <button onclick="toggleSilentMode()" id="silent-btn" class="py-3 rounded-xl font-black text-xs border bg-gray-800 border-gray-700 text-gray-300 transition">
               🔇 CALA-TE
             </button>
-            <button onclick="toggleListening()" id="listen-btn" class="py-4 rounded-xl font-black text-xs bg-cyan-500 text-black shadow-[0_0_12px_rgba(34,211,238,0.4)] transition">
+            <button onclick="toggleListening()" id="listen-btn" class="py-3 rounded-xl font-black text-xs bg-cyan-500 text-black shadow-[0_0_12px_rgba(34,211,238,0.4)] transition">
               🎙️ FALAR
             </button>
           </div>
@@ -298,11 +294,12 @@
         <section id="opcoes-scroll" class="bg-[#172554] border border-gray-800 rounded-2xl p-3 flex-1 min-h-0 overflow-y-auto"
                  style="overflow-y:auto; -webkit-overflow-scrolling:touch; overscroll-behavior:contain; touch-action:pan-y; padding-bottom:140px;">
           <div>
-            <div class="flex justify-between items-center mb-2">
-              <h3 class="text-xs font-bold text-cyan-400 uppercase tracking-wider">📦 Guias de Carga (Multidrop)</h3>
-              <span id="guias-counter" class="text-[10px] bg-gray-800 text-gray-300 px-2 py-0.5 rounded-full font-bold">0 guia(s)</span>
-            </div>
-
+            <details id="pasta-guias" class="pasta mb-2 rounded-xl border border-gray-700/40 bg-[#1E293B]/40">
+              <summary class="flex items-center justify-between px-3 py-2.5 cursor-pointer select-none">
+                <span class="text-xs font-bold text-cyan-400 uppercase tracking-wider">📁 Guias</span>
+                <span class="flex items-center gap-2"><span id="guias-counter" class="text-[10px] bg-gray-800 text-gray-300 px-2 py-0.5 rounded-full font-bold">0 guia(s)</span><span class="seta text-gray-400 text-sm">▸</span></span>
+              </summary>
+              <div class="px-2 pb-2">
             <!-- Botões fixos no topo: nunca é preciso fazer scroll até ao fundo -->
             <input type="file" id="guia-foto-input" accept="image/*" capture="environment" class="hidden">
             <input type="file" id="guia-ficheiro-input" accept="image/*,application/pdf" class="hidden">
@@ -324,6 +321,37 @@
 
             <!-- Lista renderizada por JavaScript (atualizarListaGuias) -->
             <div id="guias-list" class="space-y-2 mb-3"></div>
+            <button type="button" onclick="fecharPasta('pasta-guias')"
+                    class="w-full py-2.5 mt-1 rounded-xl text-[11px] font-extrabold bg-cyan-500/20 text-cyan-300 border border-cyan-500 active:scale-95 transition">✔ Fechar pasta Guias</button>
+              </div>
+            </details>
+
+            <details id="pasta-condutores" class="pasta mb-2 rounded-xl border border-gray-700/40 bg-[#1E293B]/40">
+              <summary class="flex items-center justify-between px-3 py-2.5 cursor-pointer select-none">
+                <span class="text-xs font-bold text-cyan-400 uppercase tracking-wider">📁 Condutores</span>
+                <span class="flex items-center gap-2"><span class="seta text-gray-400 text-sm">▸</span></span>
+              </summary>
+              <div class="px-2 pb-2">
+            <!-- BLOCO DE CONFIGURAÇÃO: CONDUTORES (DUPLA TRIPULAÇÃO) -->
+            <div class="grid grid-cols-1 gap-2 mb-2 p-2 bg-[#1E293B]/40 rounded-xl border border-gray-700/40">
+              <div>
+                <label class="block text-[9px] font-bold text-gray-400 mb-1">CONDUTOR 1 (PRINCIPAL)</label>
+                <div class="flex gap-1">
+                  <input type="text" id="condutor1-nome-input" placeholder="Condutor 1"
+                         class="flex-1 bg-[#0B132B] border border-gray-700 rounded-lg px-2 py-1 text-[11px] text-white focus:outline-none focus:border-cyan-500" />
+                  <button onclick="guardarCondutores()" class="bg-cyan-600 hover:bg-cyan-500 text-black px-2.5 py-1 rounded-lg text-[10px] font-bold">Salvar</button>
+                </div>
+              </div>
+
+              <div>
+                <label class="block text-[9px] font-bold text-gray-400 mb-1">CONDUTOR 2 (COOPERANTE)</label>
+                <div class="flex gap-1">
+                  <input type="text" id="condutor2-nome-input" placeholder="Condutor 2"
+                         class="flex-1 bg-[#0B132B] border border-gray-700 rounded-lg px-2 py-1 text-[11px] text-white focus:outline-none focus:border-cyan-500" />
+                  <span class="text-[10px] text-gray-500 self-center px-1">Dupla</span>
+                </div>
+              </div>
+            </div>
 
             <!-- BOTÃO EXPORTAR RELATÓRIO DE TURNO -->
             <button onclick="gerarEEnviarRelatorioTurno()"
@@ -336,7 +364,7 @@
                 </div>
                 <div class="text-left">
                   <p class="text-xs font-bold text-white">Exportar Relatório de Turno</p>
-                  <p class="text-[10px] text-gray-400">Enviar resumo do tacógrafo ao patrão</p>
+                  <p class="text-[10px] text-gray-400">Enviar resumo do tacógrafo à empresa</p>
                 </div>
               </div>
               <svg class="w-4 h-4 text-gray-500 group-hover:text-cyan-400 transition-colors" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -344,31 +372,19 @@
               </svg>
             </button>
 
-            <!-- BLOCO DE CONFIGURAÇÃO: CONDUTORES (DUPLA TRIPULAÇÃO) -->
-            <div class="grid grid-cols-1 gap-2 mb-2 p-2 bg-[#1E293B]/40 rounded-xl border border-gray-700/40">
-              <div>
-                <label class="block text-[9px] font-bold text-gray-400 mb-1">CONDUTOR 1 (PRINCIPAL)</label>
-                <div class="flex gap-1">
-                  <input type="text" id="condutor1-nome-input" placeholder="João Bastos"
-                         class="flex-1 bg-[#0B132B] border border-gray-700 rounded-lg px-2 py-1 text-[11px] text-white focus:outline-none focus:border-cyan-500" />
-                  <button onclick="guardarCondutores()" class="bg-cyan-600 hover:bg-cyan-500 text-black px-2.5 py-1 rounded-lg text-[10px] font-bold">Salvar</button>
-                </div>
               </div>
+            </details>
 
-              <div>
-                <label class="block text-[9px] font-bold text-gray-400 mb-1">CONDUTOR 2 (SEGUNDO / COOPERANTE)</label>
-                <div class="flex gap-1">
-                  <input type="text" id="condutor2-nome-input" placeholder="Nome do Colega"
-                         class="flex-1 bg-[#0B132B] border border-gray-700 rounded-lg px-2 py-1 text-[11px] text-white focus:outline-none focus:border-cyan-500" />
-                  <span class="text-[10px] text-gray-500 self-center px-1">Dupla</span>
-                </div>
-              </div>
-            </div>
-
+            <details id="pasta-sos" class="pasta mb-2 rounded-xl border border-gray-700/40 bg-[#1E293B]/40">
+              <summary class="flex items-center justify-between px-3 py-2.5 cursor-pointer select-none">
+                <span class="text-xs font-bold text-cyan-400 uppercase tracking-wider">📁 SOS</span>
+                <span class="flex items-center gap-2"><span class="seta text-gray-400 text-sm">▸</span></span>
+              </summary>
+              <div class="px-2 pb-2">
             <!-- CONFIGURAÇÃO: E-MAIL DO PATRÃO & SOS CENTRAL -->
             <div class="grid grid-cols-1 gap-2 mt-2 p-2 bg-[#1E293B]/40 rounded-xl border border-gray-700/40">
               <div>
-                <label class="block text-[9px] font-bold text-gray-400 mb-1">E-MAIL DO ENCARREGADO</label>
+                <label class="block text-[9px] font-bold text-gray-400 mb-1">E-MAIL DA EMPRESA</label>
                 <div class="flex gap-1">
                   <input type="email" id="patrao-email-input" placeholder="patrao@empresa.com"
                          class="flex-1 bg-[#0B132B] border border-gray-700 rounded-lg px-2 py-1 text-[11px] text-white focus:outline-none focus:border-cyan-500" />
@@ -384,8 +400,51 @@
                   <button onclick="guardarTelefoneSOS()" class="bg-cyan-600 hover:bg-cyan-500 text-black px-2.5 py-1 rounded-lg text-[10px] font-bold">Salvar</button>
                 </div>
               </div>
+              <div>
+                <label class="block text-[9px] font-bold text-gray-400 mb-1">CHAVE SOS</label>
+                <div class="flex gap-1">
+                  <input type="text" id="sos-chave-input" placeholder="chave secreta do envio de SOS"
+                         class="flex-1 bg-[#0B132B] border border-gray-700 rounded-lg px-2 py-1 text-[11px] text-white focus:outline-none focus:border-cyan-500" />
+                  <button onclick="window.BenjaminSeguranca && window.BenjaminSeguranca.guardarChave()" class="bg-cyan-600 hover:bg-cyan-500 text-black px-2.5 py-1 rounded-lg text-[10px] font-bold">Salvar</button>
+                </div>
+              </div>
             </div>
 
+              </div>
+            </details>
+
+            <!-- SEGURANÇA: sonolência (câmara frontal), aviso ao mudar de ecrã, chave do SOS e bateria (só funciona no Android) -->
+            <div class="grid grid-cols-1 gap-2 mt-2 p-2 bg-[#1E293B]/40 rounded-xl border border-gray-700/40">
+              <div>
+                <label class="block text-[9px] font-bold text-gray-400 mb-1">SONOLÊNCIA (CÂMARA FRONTAL, OPCIONAL)</label>
+                <div class="flex gap-1">
+                  <button id="btn-camera-sono" onclick="window.BenjaminSeguranca && window.BenjaminSeguranca.alternarCamera()"
+                          class="flex-1 py-2 rounded-xl text-[11px] font-bold bg-[#1E293B] text-gray-400 border border-gray-700">📷 Câmara de sonolência: DESLIGADA</button>
+                </div>
+                <p id="estado-camera-sono" class="text-[9px] text-gray-500 mt-1 leading-tight"></p>
+              </div>
+              <div>
+                <div class="flex gap-1">
+                  <button id="btn-aviso-transicao" onclick="window.BenjaminSeguranca && window.BenjaminSeguranca.alternarAviso()"
+                          class="flex-1 py-2 rounded-xl text-[11px] font-bold bg-cyan-500/20 text-cyan-300 border border-cyan-500">🔔 Aviso ao mudar de ecrã: LIGADO</button>
+                </div>
+              </div>
+              <div>
+                <button onclick="window.BenjaminSeguranca && window.BenjaminSeguranca.testarVerificacao()"
+                        class="w-full py-2 rounded-xl text-[11px] font-bold bg-[#1E293B] text-gray-300 border border-gray-700">🧪 Testar alarme de resposta ('Estás bem?')</button>
+              </div>
+              <div>
+                <button onclick="window.BenjaminSeguranca && window.BenjaminSeguranca.abrirBateria()"
+                        class="w-full py-2 rounded-xl text-[11px] font-bold bg-[#1E293B] text-gray-300 border border-gray-700">🔋 Bateria: deixar o Benjamin sem restrições</button>
+              </div>
+            </div>
+
+            <details id="pasta-transito" class="pasta mb-2 rounded-xl border border-gray-700/40 bg-[#1E293B]/40">
+              <summary class="flex items-center justify-between px-3 py-2.5 cursor-pointer select-none">
+                <span class="text-xs font-bold text-cyan-400 uppercase tracking-wider">📁 Trânsito</span>
+                <span class="flex items-center gap-2"><span class="seta text-gray-400 text-sm">▸</span></span>
+              </summary>
+              <div class="px-2 pb-2">
             <!-- TRÂNSITO: chave gratuita do TomTom (sem cartão). Sem chave, o trânsito é respondido só pelo Gemini. -->
             <div class="grid grid-cols-1 gap-2 mt-2 p-2 bg-[#1E293B]/40 rounded-xl border border-gray-700/40">
               <div>
@@ -409,6 +468,9 @@
                 </div>
               </div>
             </div>
+
+              </div>
+            </details>
 
           </div>
 
@@ -447,21 +509,20 @@
   </div>
 
   <!-- ECRÃ APAGADO (VIGILÂNCIA CEGA) -->
-  <div id="screen-off-overlay" onclick="toggleScreenOff()" class="hidden h-screen w-screen bg-black fixed inset-0 flex flex-col justify-start items-center p-6 cursor-pointer z-50">
+  <div id="screen-off-overlay" onclick="toggleScreenOff()" style="z-index:2147483000" class="hidden h-screen w-screen bg-black fixed inset-0 flex flex-col justify-start items-center p-6 cursor-pointer z-50">
     <div class="w-full flex justify-between items-center text-gray-600 text-[10px] mb-8">
       <span>Modo Noturno / Vigilância</span>
       <span>Toque p/ Ligar</span>
     </div>
 
-    <!-- LOGÓTIPO DO BENJAMIN (logo.jpg) -->
+   <!-- LOGÓTIPO DO BENJAMIN (logo.jpg) -->
     <div class="flex flex-col items-center pt-2">
-      <img src="logo.jpg" alt="Benjamin" class="w-56 h-56 rounded-2xl object-cover shadow-[0_0_35px_rgba(34,211,238,0.25)] border border-cyan-500/30">
+      <img src="assets/logo.png" alt="" class="w-56 h-56 rounded-2xl object-cover shadow-[0_0_35px_rgba(34,211,238,0.25)] border border-cyan-500/30">
     </div>
 
-    <!-- LOGÓTIPO DA CASA MÃE (BY BASTOS) EM EMBAIXO -->
-    <div class="flex flex-col items-center absolute bottom-6">
-      <img src="Heritage.INDIVIDUAL(quadrado).png" alt="By Bastos" class="h-20 rounded object-contain opacity-80 shadow-sm mb-1">
-      <span class="text-[9px] text-gray-600 uppercase tracking-widest">Toque em qualquer lugar para reativar o HUD</span>
+   <!-- LOGÓTIPO DA CASA MÃE (BY BASTOS) EM EMBAIXO -->
+    <div class="flex flex-col items-center justify-end w-full px-6 absolute bottom-3 pointer-events-none">
+      <img src="assets/Heritage.comprido.png" alt="" class="max-w-[200px] w-auto h-8 rounded object-contain opacity-90 shadow-sm">
     </div>
   </div>
 
@@ -523,6 +584,7 @@
       const targetNav = document.getElementById('nav-' + tab);
 
       if (targetTab) targetTab.classList.remove('hidden');
+      if (tab === 'opcoes' && typeof carregarOpcoes === 'function') carregarOpcoes();
       if (targetNav) targetNav.className = "flex flex-col items-center justify-center py-2 rounded-xl transition bg-cyan-500/20 text-cyan-400 border border-cyan-500/40 font-bold";
       aplicarModoGps();
     }
@@ -559,6 +621,7 @@
       document.getElementById('limit-btn').innerText = isMaxDriving ? "Limite: 10h" : "Limite: 9h";
       drivingSeconds = isMaxDriving ? 36000 : 32400;
       updateDisplay();
+      sincronizarSeguranca();
     }
 
     function formatTime(totalSecs) {
@@ -581,13 +644,30 @@
       if (pt) pt.innerText = formattedPause;
     }
 
+    // Conta pela diferença de relógio (não por "ticks"): se o WebView atrasar o temporizador, o tempo não se perde.
+    let ultimoTick = 0;
+    function avancarContagem() {
+      const agora = Date.now();
+      let d = Math.floor((agora - ultimoTick) / 1000);
+      if (d < 0) { ultimoTick = agora; return; }
+      if (d === 0) return;
+      ultimoTick += d * 1000;
+      drivingSeconds = Math.max(0, drivingSeconds - d);
+      pauseSeconds = Math.max(0, pauseSeconds - d);
+      updateDisplay();
+    }
+    document.addEventListener('visibilitychange', () => { if (tripInterval) avancarContagem(); });
+
     function iniciarContagem() {
       if (tripInterval) return;
-      tripInterval = setInterval(() => {
-        if (drivingSeconds > 0) drivingSeconds--;
-        if (pauseSeconds > 0) pauseSeconds--;
-        updateDisplay();
-      }, 1000);
+      ultimoTick = Date.now();
+      tripInterval = setInterval(avancarContagem, 1000);
+    }
+
+    // Segurança nativa (ROTT, verificação de 45 min): o Android conta sozinho a partir destes valores
+    window.__benjaminEstadoRott = () => ({ estado: tripState, continuaSeg: pauseSeconds, diarioSeg: drivingSeconds });
+    function sincronizarSeguranca() {
+      if (window.BenjaminSeguranca) window.BenjaminSeguranca.sincronizar();
     }
 
     function pararContagem() {
@@ -622,6 +702,7 @@
         setEstadoLabel("Estado: ⏸️ Pausa Ativa");
         definirBotao(btn, "bg-emerald-500 hover:bg-emerald-400 text-black", "▶️", "INICIAR");
         if (typeof Benjamin !== 'undefined') Benjamin.aoPausar();
+        sincronizarSeguranca();
         return;
       }
 
@@ -637,6 +718,7 @@
       if (!retomar && window.benjaminNav && window.benjaminNav.novoTurno) window.benjaminNav.novoTurno();
       iniciarContagem();
       updateDisplay();
+      sincronizarSeguranca();
       mostrarVista('gps');
       pedirWakeLock();
 
@@ -684,6 +766,7 @@
       pararContagem();
       drivingSeconds = 0;
       tripState = 'parado';
+      sincronizarSeguranca();
       setEstadoLabel("Estado: ⏹️ Parado / Desligado");
       definirBotao(document.getElementById('start-trip-btn'), "bg-emerald-500 hover:bg-emerald-400 text-black", "▶️", "INICIAR");
       updateDisplay();
@@ -716,7 +799,8 @@
     });
 
     function toggleScreenOff() {
-      document.getElementById('screen-off-overlay').classList.toggle('hidden');
+      const off = !document.getElementById('screen-off-overlay').classList.toggle('hidden');
+      document.body.classList.toggle('ecra-off', off);   // com o ecrã apagado, o mapa e os botões flutuantes ficam escondidos
     }
 
     // ---------- SEPARADOR BENJAMIN: ESCUTA ----------
@@ -727,8 +811,8 @@
       const badge = document.getElementById('ai-status-badge');
       if (!listenBtn || !silentBtn) return;
 
-      const baseL = "py-4 rounded-xl font-black text-xs transition ";
-      const baseS = "py-4 rounded-xl font-black text-xs border transition ";
+      const baseL = "py-3 rounded-xl font-black text-xs transition ";
+      const baseS = "py-3 rounded-xl font-black text-xs border transition ";
 
       if (estado === 'ouvir') {
         listenBtn.className = baseL + "bg-red-600 text-white border border-red-400 shadow-lg";
@@ -761,18 +845,8 @@
       if (typeof Benjamin !== 'undefined') Benjamin.silenciar();
     }
 
-    function setAiMode(mode) {
-      ['normal', 'humor', 'quiz', 'sabia'].forEach(m => {
-        document.getElementById('mode-' + m).className = "w-full py-2.5 rounded-xl text-xs font-bold bg-[#1E293B] text-gray-400 border border-gray-700";
-      });
-      const active = document.getElementById('mode-' + mode);
-      if (mode === 'normal') active.className = "w-full py-2.5 rounded-xl text-xs font-bold bg-cyan-500/20 text-cyan-300 border border-cyan-500";
-      if (mode === 'humor') active.className = "w-full py-2.5 rounded-xl text-xs font-bold bg-amber-500/20 text-amber-300 border border-amber-500";
-      if (mode === 'quiz') active.className = "w-full py-2.5 rounded-xl text-xs font-bold bg-purple-500/20 text-purple-300 border border-purple-500";
-      if (mode === 'sabia') active.className = "w-full py-2.5 rounded-xl text-xs font-bold bg-emerald-500/20 text-emerald-300 border border-emerald-500";
-    }
-
     function triggerSOS() {
+      if (window.BenjaminSeguranca && window.BenjaminSeguranca.disponivel()) { window.BenjaminSeguranca.sosIniciar(); return; }
       const confirmSOS = confirm("🚨 ALERTA SOS ACIONADO!\n\nO Benjamin vai enviar o alerta automático com coordenadas GPS em 10 segundos caso não cancele.\n\nPretende cancelar agora?");
       if (confirmSOS) {
         alert("Alerta SOS cancelado pelo condutor.");
@@ -806,19 +880,23 @@
         return;
       }
 
-      const destinatario = "joaosilvabastos@gmail.com";
-      const assunto = encodeURIComponent(`Relatório de Turno - By Bastos / Benjamin - ${dataHoje}`);
-      const corpoMensagem = encodeURIComponent(
-        `Exmo. Senhor Encarregado / Patrão,\n\n` +
-        `Segue o resumo operacional registado pelo assistente Benjamin para o turno de ${dataHoje} pelas ${horaHoje}:\n\n` +
-        `• Condutor: João Bastos\n` +
-        `• Estado da Unidade: ${estadoViagem}\n` +
-        `• Tempo de Condução Acumulado: ${tempoConducaoStr}\n` +
-        `• Pausas Regulamentares Efetuadas: ${tempoPausaStr}\n\n` +
-        `Observações: Turno executado em conformidade com os regulamentos de tacógrafo aplicáveis.\n\n` +
-        `Com os melhores cumprimentos,\n` +
-        `By Bastos - The Heritage Software Project`
-      );
+      const nomeCondutor = (typeof condutorNome !== "undefined" && condutorNome)
+  ? condutorNome
+  : "Condutor 1";
+
+const destinatario = "joaosilvabastos@gmail.com";
+const assunto = encodeURIComponent(`Relatório de Turno - By Bastos / Benjamin - ${dataHoje}`);
+const corpoMensagem = encodeURIComponent(
+  `Exmo. Senhor Encarregado / Patrão,\n\n` +
+  `Segue o resumo operacional registado pelo assistente Benjamin para o turno de ${dataHoje} pelas ${horaHoje}:\n\n` +
+  `• Condutor: ${nomeCondutor}\n` +
+  `• Estado da Unidade: ${estadoViagem}\n` +
+  `• Tempo de Condução Acumulado: ${tempoConducaoStr}\n` +
+  `• Pausas Regulamentares Efetuadas: ${tempoPausaStr}\n\n` +
+  `Observações: Turno executado em conformidade com os regulamentos de tacógrafo aplicáveis.\n\n` +
+  `Com os melhores cumprimentos,\n` +
+  `By Bastos - The Heritage Software Project`
+);
 
       window.location.href = `mailto:${destinatario}?subject=${assunto}&body=${corpoMensagem}`;
     }
@@ -831,6 +909,7 @@
         return;
       }
       localStorage.setItem('benjamin_patrao_email', input.value.trim());
+      if (window.BenjaminSeguranca) window.BenjaminSeguranca.configurar();
       alert("E-mail do encarregado guardado com sucesso no dispositivo!");
     }
 
@@ -841,6 +920,8 @@
         return;
       }
       localStorage.setItem('benjamin_sos_telefone', input.value.trim());
+      if (window.BenjaminSeguranca) window.BenjaminSeguranca.configurar();
+      if (window.BenjaminSeguranca) window.BenjaminSeguranca.pedirChamada();   // o SOS passa a ligar sozinho à central
       alert("Número da central SOS guardado com sucesso no dispositivo!");
     }
 
@@ -872,6 +953,7 @@
 
       localStorage.setItem('benjamin_condutor1_nome', cond1.value.trim());
       localStorage.setItem('benjamin_condutor2_nome', cond2 ? cond2.value.trim() : "");
+      if (window.BenjaminSeguranca) window.BenjaminSeguranca.configurar();
 
       atualizarBotoesCondutores();
       alert("Tripulação guardada com sucesso no dispositivo!");
@@ -889,16 +971,15 @@
       return (nome1 && nome1.trim()) ? nome1.trim() : "Condutor";
     }
 
-    function atualizarBotoesCondutores() {
-      const cond1 = localStorage.getItem('benjamin_condutor1_nome') || "João Bastos";
-      const cond2 = localStorage.getItem('benjamin_condutor2_nome') || "";
-      const ativo = localStorage.getItem('benjamin_motorista_ativo') || "1";
+   function atualizarBotoesCondutores() {
+  const cond1 = localStorage.getItem('benjamin_condutor1_nome') || "Condutor 1";
+  const cond2 = localStorage.getItem('benjamin_condutor2_nome') || "";
+  const ativo = localStorage.getItem('benjamin_motorista_ativo') || "1";
 
-      const btn1 = document.getElementById('btn-condutor-1');
-      const btn2 = document.getElementById('btn-condutor-2');
-      const label1 = document.getElementById('label-condutor-1');
-      const label2 = document.getElementById('label-condutor-2');
-
+  const btn1 = document.getElementById('btn-condutor-1');
+  const btn2 = document.getElementById('btn-condutor-2');
+  const label1 = document.getElementById('label-condutor-1');
+  const label2 = document.getElementById('label-condutor-2');
       if (label1) label1.innerText = cond1;
 
       if (cond2.trim() !== "") {
@@ -935,13 +1016,50 @@
       alert(`Benjamin: A partir de agora, o condutor ativo é ${nomeAtivo}.`);
     }
 
+    // Repõe nos campos das Opções o que foi guardado (sem isto os campos apareciam vazios ao voltar)
+    function carregarOpcoes() {
+      const preencher = (id, chave) => {
+        try {
+          const el = document.getElementById(id);
+          const v = localStorage.getItem(chave);
+          if (el && v !== null) el.value = v;
+        } catch (_) {}
+      };
+      preencher('condutor1-nome-input', 'benjamin_condutor1_nome');
+      preencher('condutor2-nome-input', 'benjamin_condutor2_nome');
+      preencher('patrao-email-input', 'benjamin_patrao_email');
+      preencher('sos-telefone-input', 'benjamin_sos_telefone');
+    }
+
+    function fecharPasta(id) {
+      const d = document.getElementById(id);
+      if (!d) return;
+      d.open = false;
+      const sc = document.getElementById('opcoes-scroll');
+      if (sc) sc.scrollTop = 0;
+    }
+
+    // Uma guia nova (Nova guia, Importar, Fotografar, partilha, voz) abre a pasta Guias e deixa-a aberta até o condutor a fechar
+    function vigiarPastaGuias() {
+      const lista = document.getElementById('guias-list');
+      if (!lista || typeof MutationObserver === 'undefined') return;
+      let n = lista.querySelectorAll('[data-guia-id]').length;
+      new MutationObserver(() => {
+        const m = lista.querySelectorAll('[data-guia-id]').length;
+        if (m > n) { const d = document.getElementById('pasta-guias'); if (d) d.open = true; }
+        n = m;
+      }).observe(lista, { childList: true });
+    }
+
     // ---------- ARRANQUE ----------
     window.addEventListener('DOMContentLoaded', () => {
       atualizarBotoesCondutores();
+      carregarOpcoes();
       try { const k = document.getElementById('ors-key-input'); if (k) k.value = localStorage.getItem('benjamin_ors_key') || ''; } catch (_) {}
       try { const k = document.getElementById('tomtom-key-input'); if (k) k.value = localStorage.getItem('benjamin_tomtom_key') || ''; } catch (_) {}
-      // arranque: se já há uma 1.ª guia, abre logo na vista GPS (a navegação assume o 1.º destino)
-      mostrarVista(window.benjaminNav && window.benjaminNav.temDestino() ? 'gps' : 'tempo');
+      // arranque: abre sempre no ecrã principal (Tempo / Tacógrafo); o GPS só abre quando o condutor carrega em iniciar ou em GPS
+      mostrarVista('tempo');
+      vigiarPastaGuias();
       atualizarBotoesEscuta('inativo');
     });
   </script>
@@ -950,6 +1068,7 @@
     import { BenjaminEngine } from './benjaminEngine.js';
     import { Benjamin } from './benjamin.js';
     import { Navegacao } from './benjaminNav.js';
+    import { BenjaminSeguranca } from './benjaminSeguranca.js';
     
     // TORNA GLOBAL PARA OS BOTÕES DO HTML FUNCIONAREM
     window.Benjamin = Benjamin;
@@ -957,8 +1076,14 @@
     Benjamin.aoMudarEstadoEscuta = window.atualizarBotoesEscuta;
     window.benjaminEngine = new BenjaminEngine();
 
+    // Segurança nativa (ROTT, verificação de 45 min, SOS, sonolência): inerte fora do Android
+    window.BenjaminSeguranca = BenjaminSeguranca.iniciar();
+
     // Mapa de rota (silencioso): assume sozinho a morada de descarga da 1.ª guia (voz OFF por defeito)
     window.benjaminNav = new Navegacao(Benjamin).iniciar();
+
+    // Saudação ao abrir a app (uma vez; espera um instante para a voz nativa estar pronta)
+    setTimeout(() => { try { Benjamin.saudacaoInicial(); } catch (e) { console.warn('Benjamin: saudação', e); } }, 1800);
   </script>
 </body>
 </html>

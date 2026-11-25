@@ -34,6 +34,7 @@ import com.getcapacitor.annotation.PermissionCallback;
 
 import java.util.ArrayList;
 import java.util.Collections;
+import java.util.HashSet;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Locale;
@@ -42,6 +43,7 @@ import java.util.Set;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
+import java.util.concurrent.RejectedExecutionException;
 import java.util.concurrent.TimeUnit;
 
 /**
@@ -67,6 +69,9 @@ import java.util.concurrent.TimeUnit;
 public class BenjaminVoicePlugin extends Plugin {
 
     private static final String TAG = "BenjaminNativo";
+
+    /** Instância viva (null quando a Activity foi destruída): usada pelo núcleo de segurança para falar. */
+    public static volatile BenjaminVoicePlugin instancia;
 
     /** Silencia os canais de áudio à volta de cada sessão de escuta para tapar o bip do reconhecedor. */
     private static final boolean SILENCIAR_BIP = true;
@@ -106,6 +111,8 @@ public class BenjaminVoicePlugin extends Plugin {
     private int sessaoLoudness = 0;
     private AudioAttributes attrs;
     private AudioFocusRequest foco;
+    private int focoGanho = AudioManager.AUDIOFOCUS_GAIN_TRANSIENT_MAY_DUCK;
+    private final Set<String> falasInternas = new HashSet<>();   // só em exec: avisos de segurança
 
     private boolean servicoAtivo;       // só em exec
 
@@ -116,6 +123,7 @@ public class BenjaminVoicePlugin extends Plugin {
     @Override
     public void load() {
         super.load();
+        instancia = this;
         Context ctx = getContext();
         audio = (AudioManager) ctx.getSystemService(Context.AUDIO_SERVICE);
         attrs = new AudioAttributes.Builder()
@@ -142,6 +150,7 @@ public class BenjaminVoicePlugin extends Plugin {
     @Override
     protected void handleOnDestroy() {
         super.handleOnDestroy();
+        if (instancia == this) instancia = null;
         main.post(new Runnable() {
             @Override
             public void run() {
@@ -389,6 +398,7 @@ public class BenjaminVoicePlugin extends Plugin {
                 String texto = m.get(0) == null ? "" : m.get(0).trim();
                 if (!texto.isEmpty()) {
                     Log.i(TAG, "Ouvi: " + texto);
+                    if (SegurancaCore.tratarVoz(texto)) { agendarSessao(300); return; }   // SOS / "estou bem": não vai ao Gemini
                     JSObject o = new JSObject();
                     o.put("texto", texto);
                     notifyListeners("resultado", o);
@@ -441,6 +451,8 @@ public class BenjaminVoicePlugin extends Plugin {
         if (mudo) {
             for (int s : STREAMS_BIP) {
                 if (streamsMudos.contains(s)) continue;
+                if (s == AudioManager.STREAM_MUSIC && audio.isMusicActive()) continue;   // não cala a música/navegação de outras apps
+                if (s == AudioManager.STREAM_ALARM && SegurancaCore.alarme != null && SegurancaCore.alarme.ativo()) continue;   // nem o alarme de segurança
                 try {
                     if (Build.VERSION.SDK_INT >= 23 && audio.isStreamMute(s)) continue; // já estava mudo: não tocar
                     audio.adjustStreamVolume(s, AudioManager.ADJUST_MUTE, 0);
@@ -632,9 +644,10 @@ public class BenjaminVoicePlugin extends Plugin {
     }
 
     private void fimFalaNoExec(String id, String erro) {
+        if (falasInternas.remove(id)) { fimInternoNoExec(); return; }
         PluginCall c = falas.remove(id);
         if (c == null) return; // já resolvida por cortarFala()
-        if (falas.isEmpty()) {
+        if (falas.isEmpty() && falasInternas.isEmpty()) {
             main.removeCallbacks(tarefaResetAFalar);
             aFalar = false;
             largarFoco();
@@ -668,6 +681,104 @@ public class BenjaminVoicePlugin extends Plugin {
         esperaTts.clear();
         aFalar = false;
         largarFoco();
+    }
+
+    // ---- Avisos internos (ROTT, SOS, sonolência...): sem PluginCall, mesma voz e mesma afinação ----
+
+    /**
+     * Fala um aviso do código nativo. nivel 0 = normal (foco MAY_DUCK, entra na fila);
+     * nivel 1 = crítico (foco EXCLUSIVE, corta o que estiver a ser dito).
+     * Devolve false se o TTS ainda não está pronto (o chamador usa a voz de reserva).
+     * Não fala durante uma chamada: sem foco de áudio, desiste.
+     */
+    public boolean falarInterno(final String texto, final int nivel) {
+        if (texto == null || texto.trim().isEmpty() || !ttsPronto || ttsErro != null) return false;
+        try {
+            exec.execute(new Runnable() {
+                @Override public void run() { falarInternoNoExec(texto, nivel); }
+            });
+            return true;
+        } catch (RejectedExecutionException e) {
+            return false;
+        }
+    }
+
+    private void falarInternoNoExec(String texto, int nivel) {
+        TextToSpeech t = tts;
+        if (t == null || !ttsPronto) return;
+        boolean critico = nivel >= 1;
+
+        if (critico) {
+            try { t.stop(); } catch (RuntimeException e) { /* ok */ }
+            for (PluginCall c : new ArrayList<>(falas.values())) c.resolve();
+            falas.clear();
+            falasInternas.clear();
+        }
+
+        aFalar = true;
+        main.removeCallbacks(tarefaResetAFalar);
+        main.postDelayed(tarefaResetAFalar, 18000);
+
+        final CountDownLatch pronto = new CountDownLatch(1);
+        main.post(new Runnable() {
+            @Override
+            public void run() {
+                try { cancelarSessao(); } finally { pronto.countDown(); }
+            }
+        });
+        try {
+            pronto.await(500, TimeUnit.MILLISECONDS);
+        } catch (InterruptedException e) {
+            Thread.currentThread().interrupt();
+        }
+
+        garantirSaidaAltifalante();
+        boolean temFoco = pedirFoco(critico ? AudioManager.AUDIOFOCUS_GAIN_TRANSIENT_EXCLUSIVE
+                : AudioManager.AUDIOFOCUS_GAIN_TRANSIENT_MAY_DUCK);
+        if (!temFoco) {
+            Log.w(TAG, "Aviso interno calado: sem foco de áudio (chamada em curso?)");
+            fimInternoNoExec();
+            return;
+        }
+        // Mesma afinação de falarNoExec (pitch 0.35, rate 1.3): se mudares lá, muda aqui.
+        t.setPitch(0.35f);
+        aplicarVoz(t, "");
+        t.setSpeechRate(1.3f);
+
+        String id = "i" + (++contadorFalas);
+        falasInternas.add(id);
+        Bundle params = new Bundle();
+        params.putFloat(TextToSpeech.Engine.KEY_PARAM_VOLUME, 1.0f);
+        params.putInt(TextToSpeech.Engine.KEY_PARAM_STREAM, AudioManager.STREAM_MUSIC);
+        try {
+            if (loudnessEnhancer == null && audio != null) {
+                sessaoLoudness = audio.generateAudioSessionId();
+                loudnessEnhancer = new LoudnessEnhancer(sessaoLoudness);
+                loudnessEnhancer.setTargetGain(900);
+                loudnessEnhancer.setEnabled(true);
+            }
+            if (loudnessEnhancer != null) {
+                params.putInt(TextToSpeech.Engine.KEY_PARAM_SESSION_ID, sessaoLoudness);
+            }
+        } catch (RuntimeException e) {
+            Log.w(TAG, "LoudnessEnhancer indisponivel", e);
+            loudnessEnhancer = null;
+        }
+        int r = t.speak(texto, critico ? TextToSpeech.QUEUE_FLUSH : TextToSpeech.QUEUE_ADD, params, id);
+        if (r != TextToSpeech.SUCCESS) {
+            falasInternas.remove(id);
+            fimInternoNoExec();
+        }
+    }
+
+    private void fimInternoNoExec() {
+        if (falas.isEmpty() && falasInternas.isEmpty()) {
+            main.removeCallbacks(tarefaResetAFalar);
+            aFalar = false;
+            largarFoco();
+            notifyListeners("ttsFim", new JSObject());
+            main.postDelayed(tarefaAbrirSessao, 500);
+        }
     }
 
     // ---- Vozes ----
@@ -752,22 +863,48 @@ public class BenjaminVoicePlugin extends Plugin {
     // ---- Foco de áudio: baixa as outras apps enquanto o Benjamin fala ----
 
     private void pedirFoco() {
-        if (audio == null) return;
+        pedirFoco(AudioManager.AUDIOFOCUS_GAIN_TRANSIENT_MAY_DUCK);
+    }
+
+    /** Se uma chamada (ou outra app com prioridade) nos nega o foco, devolve false. */
+    private boolean pedirFoco(int ganho) {
+        if (audio == null) return true;
         try {
             if (Build.VERSION.SDK_INT >= 26) {
+                if (foco != null && focoGanho != ganho) {
+                    audio.abandonAudioFocusRequest(foco);
+                    foco = null;
+                }
                 if (foco == null) {
-                    foco = new AudioFocusRequest.Builder(AudioManager.AUDIOFOCUS_GAIN_TRANSIENT_MAY_DUCK)
+                    focoGanho = ganho;
+                    foco = new AudioFocusRequest.Builder(ganho)
                             .setAudioAttributes(attrs)
+                            .setOnAudioFocusChangeListener(focoListener)
                             .build();
                 }
-                audio.requestAudioFocus(foco);
+                return audio.requestAudioFocus(foco) != AudioManager.AUDIOFOCUS_REQUEST_FAILED;
             } else {
-                audio.requestAudioFocus(null, AudioManager.STREAM_MUSIC, AudioManager.AUDIOFOCUS_GAIN_TRANSIENT_MAY_DUCK);
+                return audio.requestAudioFocus(null, AudioManager.STREAM_MUSIC, ganho) != AudioManager.AUDIOFOCUS_REQUEST_FAILED;
             }
         } catch (RuntimeException e) {
             Log.w(TAG, "requestAudioFocus", e);
+            return true;
         }
     }
+
+    /** Chamada a entrar (ou outra app que precisa do áudio): o Benjamin cala-se em vez de falar por cima. */
+    private final AudioManager.OnAudioFocusChangeListener focoListener = new AudioManager.OnAudioFocusChangeListener() {
+        @Override
+        public void onAudioFocusChange(int mudanca) {
+            if (mudanca != AudioManager.AUDIOFOCUS_LOSS && mudanca != AudioManager.AUDIOFOCUS_LOSS_TRANSIENT) return;
+            if (!aFalar) return;
+            try {
+                exec.execute(new Runnable() {
+                    @Override public void run() { cortarFalaNoExec(); }
+                });
+            } catch (RejectedExecutionException e) { /* a fechar */ }
+        }
+    };
 
     private void largarFoco() {
         if (audio == null) return;

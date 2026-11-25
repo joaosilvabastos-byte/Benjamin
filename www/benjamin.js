@@ -236,11 +236,31 @@ export const Benjamin = {
     this.modoEmEspera = false;
     this._servicoNativo(true); // serviço em primeiro plano (microfone) — pede a permissão na 1.ª vez
     const [m1, m2] = this._boasVindas();
-    this.falar(m1);          // 1.ª mensagem de boas-vindas
+    // se já o cumprimentei ao abrir a app, não repete a apresentação: só avisa que a viagem começou
+    this.falar(this._saudouAoAbrir ? 'Viagem iniciada!' : m1);          // 1.ª mensagem de boas-vindas
     this.falar(m2);          // 2.ª mensagem de boas-vindas
     this.ouvirContinuo();    // fica sempre à escuta (o microfone só abre quando acabar de falar)
   },
 
+  /** Ao abrir a app: saudação inicial, uma única vez por abertura. */
+  saudacaoInicial() {
+    if (this._saudouAoAbrir) return;
+    this._saudouAoAbrir = true;
+    this.init();
+    const nome = this._nomeCondutor();
+    const guias = (typeof window.getGuias === 'function' ? window.getGuias() : []) || [];
+    const abre = `${this._saudacao()}${nome ? ' ' + nome : ''}. Sou o Benjamin, o teu co-piloto. `;
+   if (Array.isArray(guias) && guias.length > 0) {
+      const qtd = guias.length === 1 ? 'uma' : (guias.length === 2 ? 'duas' : guias.length);
+      this.falar(abre + `Tens ${qtd} ${guias.length === 1 ? 'guia de remessa registada' : 'guias de remessa registadas'}, ` +
+        'mas não te esqueças de ir às opções, para pôr em primeiro lugar a primeira entrega que vamos fazer. ' +
+        'Depois disso, volta a este ecrã e clica em iniciar.');
+    } else {
+      this.falar(abre + 'Não encontrei nenhuma guia de remessa registada. ' +
+        'Podes ir às opções para registar uma nova, por escrito, por PDF, por fotografia ou por voz, ' +
+        'ou podes seguir viagem apenas com a minha companhia, mas tens de ir ao separador Benjamin e carregar em Falar.');
+    }
+  },
   aoRetomar() {
     this.falar(this._variar('retomar', [
       'Vamos a isso. Boa estrada!',
@@ -275,21 +295,22 @@ export const Benjamin = {
     return h < 6 ? 'Boa noite' : h < 12 ? 'Bom dia' : h < 20 ? 'Boa tarde' : 'Boa noite';
   },
 
-  _boasVindas() {
+ _boasVindas() {
     const nome = this._nomeCondutor();
     const guias = (typeof window.getGuias === 'function' ? window.getGuias() : []) || [];
-    const m1 = `${this._saudacao()}${nome ? ', ' + nome : ''}! Aqui é o Benjamin, o teu co-piloto. Viagem iniciada, boa estrada!`;
+    const m1 = `${this._saudacao()}${nome ? ', ' + nome : ''}! Aqui é o Benjamin, o teu co-piloto. Viagem iniciada!`;
 
     let parteGuias;
     if (guias.length) {
+      const qtd = guias.length === 1 ? 'uma' : (guias.length === 2 ? 'duas' : guias.length);
       const comMorada = guias.find((g) => g.morada);
-      parteGuias = `Tens ${guias.length} ${guias.length === 1 ? 'guia de remessa registada' : 'guias de remessa registadas'}` +
+      parteGuias = `Tens ${qtd} ${guias.length === 1 ? 'guia de remessa registada' : 'guias de remessa registadas'}` +
         `${comMorada ? ', e o primeiro destino é ' + comMorada.morada : ''}. ` +
         'Confere se está tudo na carga, para não vires a ter desgostos.';
     } else {
       parteGuias = 'Ainda não tenho nenhuma guia de remessa registada. Confere a carga antes de arrancares, para não vires a ter desgostos.';
     }
-    const m2 = `Fico sempre à escuta: é só falares comigo, sem tocar em nada. ${parteGuias}`;
+    const m2 = `Estou sempre presente.: é só falares comigo. ${parteGuias}`;
     return [m1, m2];
   },
 
@@ -628,7 +649,7 @@ export const Benjamin = {
     rec.onstart = () => {
       this._aOuvir = true;
       this._inicioSessao = Date.now();
-      this._atualizarUI('listening', 'A escutar na cabine...');
+      this._atualizarUI('listening', 'Benjamin a ouvir...');
     };
 
     rec.onresult = (event) => {
@@ -807,7 +828,7 @@ export const Benjamin = {
           if (r && r.ouvindo) {
             this._aOuvir = true;
             this._falhasRapidas = 0;
-            this._atualizarUI('listening', 'A escutar na cabine...');
+            this._atualizarUI('listening', 'Benjamin a ouvir...');
           } else if (r && r.motivo === 'modelo') {
             console.log('Benjamin NATIVO: a aguardar o modelo de voz (1.ª vez demora uns segundos)...');
           } else {
@@ -1061,6 +1082,13 @@ export const Benjamin = {
     return o;
   },
 
+  /** Sem nome de condutor: tira a vírgula e o espaço que sobram quando o tratamento fica vazio ("Diz lá, ." -> "Diz lá."). */
+  _semTratamentoVazio(s) {
+    if (typeof s !== 'string') return s;
+    s = s.replace(/\s+,\s*([.!?])/g, '$1').replace(/,\s+([.!?])/g, '$1').replace(/^\s*,\s*/, '');
+    return s.replace(/^(\s*)([a-zà-ÿ])/, (m, a, b) => a + b.toUpperCase());
+  },
+
   async _validarQuiz(t, texto, tr) {
     const q = this._quiz;
     const palavras = t.split(' ').length;
@@ -1219,7 +1247,7 @@ export const Benjamin = {
   _tipoPontoUtil(t) {
     if (t.split(' ').length > 12) return null;
     const pede = /\b(preciso|precisamos|onde|ha|tem|tens|perto|proximo|proxima|quero|procura|mostra|marca|indica|ajuda)\b/.test(t);
-    if (/\b(abastecer|abastecimento|gasolina|gasoleo|diesel|combustivel|gasolineira|bomba de gasolina|bombas de gasolina|posto de combustivel|postos de combustivel)\b/.test(t) ||
+    if (/\b(abastecer|abastecimento|atestar|gasolina|gasoleo|diesel|combustivel|gasolineira|gasolineiras|bomba de gasolina|bombas de gasolina|posto de combustivel|postos de combustivel|posto de gasolina|postos de gasolina|encher o deposito|encher o tanque|sem combustivel|na reserva)\b/.test(t) ||
         (/\bpostos?\b/.test(t) && pede)) return 'combustivel';
     if (/\b(area|areas) de (descanso|servico)\b/.test(t) ||
         (/\b(parar|descansar|estacionar|dormir)\b/.test(t) && /\b(onde|sitio|local|perto|parque)\b/.test(t)) ||
@@ -1268,7 +1296,7 @@ export const Benjamin = {
       if (t.length < (quiz ? 1 : 2)) return;   // com um quiz aberto, "A" / "B" / "C" são respostas válidas
       const tem = (lista) => this._tem(t, lista);
       const nome = this._nomeCondutor();
-      const tr = nome || 'chefe';
+      const tr = nome || '';      // sem nome: sem tratamento (a frase é limpa antes de falar)
       const agora = new Date();
       let resposta;
       let tipoPonto = null;
@@ -1285,7 +1313,8 @@ export const Benjamin = {
         this._fechaQuiz();
         await this.falar(this._variar('cala', [
           'Safa, que mau feitio. Pronto, fico calado. Diz "Benjamin, acorda" quando tiveres saudades minhas.',
-          'Contrariado, mas calo-me. Quando precisares de mim, já sabes: "Benjamin, acorda".',
+          'Contrariado, mas calo-me. Quando precisares de mim, já sabes: Diz "Benjamin, acorda".',
+          'Já percebi. O teu amor por mim, não é constante. Isto parece uma tragédia Grega.Vou-me calar, embora contrariado. Quando precisares de mim, já sabes: Diz "Benjamin, acorda".',
         ]));
         this.modoEmEspera = true;
         this._emitirEstado('calado');
@@ -1404,6 +1433,7 @@ export const Benjamin = {
         resposta = await this._comPensar(() => this.perguntarAoGemini(texto));
       }
 
+      resposta = this._semTratamentoVazio(resposta);
       console.log('Benjamin responde:', resposta);
       if (this._t0) console.log(`Benjamin LATÊNCIA: resposta pronta ${Date.now() - this._t0} ms depois de ouvir a frase`);
       this.falar(resposta);
