@@ -234,9 +234,10 @@ export const Benjamin = {
     if (estado === 'listening') this._aquecerWorker();
   },
 
+  /** A transcrição ao vivo já não aparece no ecrã (o reconhecimento dá gralhas). O texto continua a seguir para aoOuvir() e fica no log ("Condutor disse"). */
   _mostrarTranscricao(texto) {
     const el = document.getElementById('transcricao');
-    if (el) el.innerText = `"${texto}"`;
+    if (el && el.innerText) el.innerText = '';
   },
 
   // ================= Eventos da viagem (chamados pelo index.html) =================
