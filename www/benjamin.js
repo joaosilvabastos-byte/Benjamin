@@ -220,9 +220,18 @@ export const Benjamin = {
     try { if (typeof this.aoMudarEstadoEscuta === 'function') this.aoMudarEstadoEscuta(estado); } catch (e) { /* UI opcional */ }
   },
 
+  /** Abre a ligação (DNS+TLS) ao Worker enquanto o condutor ainda está a falar: o pedido seguinte já vai por uma ligação quente. */
+  _aquecerWorker() {
+    const agora = Date.now();
+    if (agora - (this._aquecidoEm || 0) < 60000) return;
+    this._aquecidoEm = agora;
+    try { fetch(URL_WORKER, { method: 'OPTIONS', cache: 'no-store' }).catch(() => {}); } catch (e) { /* ok */ }
+  },
+
   _atualizarUI(estado, mensagem) {
     const el = document.getElementById('status');
     if (el && mensagem) el.innerText = mensagem;
+    if (estado === 'listening') this._aquecerWorker();
   },
 
   _mostrarTranscricao(texto) {
@@ -387,6 +396,7 @@ export const Benjamin = {
         this._fila.push({ texto: p, resolve: i === pedacos.length - 1 ? resolve : null });
       });
 
+      this._tFalar = Date.now();
       // Barreira: microfone desligado ANTES de qualquer som
       this.aFalar = true;
       clearTimeout(this._timerReativar);
@@ -401,8 +411,9 @@ export const Benjamin = {
     this._atualizarUI('speaking', 'Benjamin a falar...');
 
     // Espera que o microfone liberte o áudio antes de falar (evita "audio-busy" / voz muda)
-    for (let i = 0; i < 12 && this._aOuvir; i++) await new Promise((r) => setTimeout(r, 100));
-    await new Promise((r) => setTimeout(r, this._ttsVp() ? 30 : 150));
+    for (let i = 0; i < 48 && this._aOuvir; i++) await new Promise((r) => setTimeout(r, 25));   // sonda de 25 ms (antes 100): sai assim que o microfone fecha
+    await new Promise((r) => setTimeout(r, this._ttsVp() ? 10 : 100));
+    if (this._tFalar) { console.log(`Benjamin LATÊNCIA: falar() -> 1.ª frase enviada ao motor de voz ${Date.now() - this._tFalar} ms`); this._tFalar = 0; }
 
     while (this._fila.length) {
       const item = this._fila.shift();
@@ -433,7 +444,7 @@ export const Benjamin = {
     const erro = await new Promise((resolve) => {
       const u = new SpeechSynthesisUtterance(texto);
       u.lang = voz ? voz.lang : 'pt-PT';
-      u.rate = 1.0;
+      u.rate = 1.12;
       u.volume = 1;
       u.pitch = this._vozConfirmada ? 0.95 : 0.8;
       if (voz) u.voice = voz;
@@ -449,7 +460,7 @@ export const Benjamin = {
       const watchdog = setTimeout(() => {
         console.warn('Benjamin TTS: onend nunca chegou (watchdog) →', texto.slice(0, 40));
         fim();
-      }, 4000 + texto.length * 90);
+      }, 4000 + texto.length * 75);
 
       // Se a voz nunca arranca (onstart ausente), não esperar em silêncio: avisar e deixar passar ao plano B
       let iniciou = false;
@@ -925,6 +936,7 @@ export const Benjamin = {
 
   async _fetchJSON(url, opcoes = {}, ms = 5000, tentativa = 1) {
     const timeoutMs = tentativa === 2 ? 6000 : ms;
+    const t0Fetch = Date.now();
     const ctrl = new AbortController();
     const timer = setTimeout(() => ctrl.abort(), timeoutMs);
     try {
@@ -939,7 +951,9 @@ export const Benjamin = {
       };
       const r = await fetch(url, opts);
       if (!r.ok) {
-        console.warn(`Benjamin: HTTP aviso ${r.status} (${r.statusText}) na tentativa ${tentativa} de 2 para ${url}`);
+        let corpo = '';
+        try { corpo = (await r.text()).slice(0, 300); } catch (e) { /* ok */ }
+        console.warn(`Benjamin: HTTP aviso ${r.status} (${r.statusText}) na tentativa ${tentativa} de 2 para ${url} →`, corpo);
         const err = new Error(`HTTP ${r.status} ${r.statusText}`);
         err.status = r.status;
         throw err;
@@ -949,9 +963,11 @@ export const Benjamin = {
       const statusInfo = err && err.status ? ` (HTTP ${err.status})` : '';
       console.warn(`Benjamin: Falha na chamada a ${url} (tentativa ${tentativa} de 2)${statusInfo}:`, err && err.message);
 
-      if (tentativa < 2) {
-        console.warn(`Benjamin: A aguardar 300 ms para a tentativa 2 de 2 (timeout 6s)...`);
-        await new Promise((resolve) => setTimeout(resolve, 300));
+      // Só repete falhas rápidas de ligação ou 5xx/429. Um timeout (AbortError) ou um 4xx não se repetem: seria o dobro da espera para nada.
+      const rapida = Date.now() - t0Fetch < 2000;
+      const repetivel = err && err.name !== 'AbortError' && (!err.status || err.status >= 500 || err.status === 429);
+      if (tentativa < 2 && rapida && repetivel) {
+        console.warn('Benjamin: falha rápida, tentativa 2 de 2 já.');
         return await this._fetchJSON(url, opcoes, 6000, 2);
       }
       console.error(`Benjamin: Todas as 2 tentativas de _fetchJSON falharam para ${url}:`, err);
@@ -1031,7 +1047,7 @@ export const Benjamin = {
   async _novoConteudo(tipo) {
     let tema = this._escolherTema(tipo);
     for (let tentativa = 0; tentativa < 2; tentativa++) {
-      const bruto = await this.perguntarAoGemini(this._pedido(tipo, tema), { semOffline: true, ms: 5000 });
+      const bruto = await this.perguntarAoGemini(this._pedido(tipo, tema), { semOffline: true, ms: 8000 });
       if (!bruto) return null;
       let texto = bruto.trim();
       let letra = null;
@@ -1443,7 +1459,7 @@ export const Benjamin = {
   },
 
   /** semOffline: devolve null (em vez de uma frase de "perdi o sinal") quando o Worker falha. */
-  async perguntarAoGemini(textoUsuario, { semOffline = false, ms = 5000 } = {}) {
+  async perguntarAoGemini(textoUsuario, { semOffline = false, ms = 7000 } = {}) {
     console.time('worker');
     try {
       const promptLimpo = String(textoUsuario || '').trim();
